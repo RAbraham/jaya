@@ -1,0 +1,7 @@
+[credentials]
+aws_id  = 
+aws_key = 
+aws_region = us-east-1
+[s3]
+REDSHIFT_COPY_BUCKET = thescore-redshift-copy
+ESPORTS_YOUTUBE_KEY_PREFIX = esports/youtube
