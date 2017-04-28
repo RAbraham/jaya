@@ -4,6 +4,7 @@ import os
 from jaya.lib import util
 from jaya.config import config
 from botocore.exceptions import ClientError
+from jaya.lib import util
 
 MAX_LAMBDA_MEMORY = 1536
 MAX_LAMBDA_TIMEOUT = 300
@@ -118,6 +119,7 @@ def deploy_lambda(environment,
 
     # Add Alias
     lambda_client = aws.client(conf, 'lambda', region_name=region_name)
+
     lambda_client.delete_alias(
         FunctionName=lambda_name,
         Name=environment
@@ -184,6 +186,39 @@ def deploy_lambda_and_integrations(conf, environment, info, path, region_name):
                                                region_name=region_name))
 
     return responses
+
+
+def deploy_lambda_package(aws_lambda_function,
+                          working_directory='/tmp',
+                          serialized_file_name='handler.dill'
+                          ):
+    serialized_file_path = working_directory + '/' + serialized_file_name
+    import os
+    os.remove(serialized_file_path)
+    environment = 'staging'
+    lambda_name = aws_lambda_function.name
+    lambda_template_file = config.project_root() + '/core/template/lambda.py'
+    util.pickle_and_save_dill(aws_lambda_function.handler, serialized_file_path)
+    real_root = os.path.join(config.project_root(), '..')
+
+    python3_package_dir = real_root + '/venv/' + 'lib/python3.6/site-packages'
+    deploy(environment,
+           lambda_template_file,
+           'Jaya Lambda',
+           real_root + '/venv',
+           aws_lambda_function.dependency_paths + [serialized_file_path],
+           memory=128,
+           timeout=300,
+           update=True,
+           lambda_name=lambda_name,
+           region_name='us-east-1',
+           python_package_dir=python3_package_dir,
+           is_python3=True
+           )
+
+
+def deploy_pipeline(pipeline):
+    pipe = pipeline.pipes[0]
 
 
 def create_firehose(application, environment, name, redshift_table, prefix=None):
