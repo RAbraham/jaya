@@ -19,7 +19,7 @@ def test_dest_func(source_bucket, source_key):
 class JayaTestCase(unittest.TestCase):
     def test_copy_to_bucket(self):
         p = CopyS3Lambda({}) >> S3(bucket=TEST_BUCKET1)
-        aws_lambda = p.root()
+        aws_lambda = p.value()
         expected_value = ['from lib import util',
                           'from lib import aws',
                           'from config import config',
@@ -42,7 +42,7 @@ class JayaTestCase(unittest.TestCase):
 
     def test_copy_to_bucket_func(self):
         p = CopyS3Lambda({}) >> S3(destination_func=test_dest_func)
-        aws_lambda = p.root()
+        aws_lambda = p.value()
         pprint(aws_lambda.code_as_strs())
 
         # def test_copy_to_multiple_buckets(self):

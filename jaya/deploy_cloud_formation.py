@@ -1,72 +1,46 @@
 import sys
 import os
 
-from jaya.util.aws_lambda.aws_lambda_utils import CreateFileLambda, CopyS3Lambda
-from jaya.core import S3
-from jaya.deployment.deploy_lambda import deploy_lambda_package, deploy_pipeline
-from jaya.lib import util
-import jaya.lib as jl
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from jaya.core import Pipeline
-
-# from jaya.config import config
-# from jaya.lib import util
-# from jaya.deployment.deploy_lambda import deploy_lambda
-# from jaya.lib import aws
-
-# src_root = config.project_root()
-# py2_handler = src_root + '/aws_lambda/handler.py'
-# py3_handler = src_root + '/aws_lambda/handler_python3.py'
-# venv3_path = '/Users/rabraham/Documents/dev/thescore/analytics/jaya/jaya/aws_lambda/linux_venv/'
-# venv3_path_site_packages = venv3_path + 'lib/python3.6/site-packages'
-# python3_packages = util.get_children(venv3_path_site_packages)
-#
-# lambda_name = 'test_py3_runner'
-# conf = config.get_aws_config('production')
-# aws.delete_lambda(conf, lambda_name, 'us-east-1')
-# deploy_lambda('production',
-#               lambda_name,
-#               [py2_handler, py3_handler, venv3_path] + python3_packages,
-#               'lambda_s3_exec_role',
-#               128,
-#               300,
-#               lambda_description='Test for Python 3',
-#               alias_description='Alias for ' + 'production',
-#               update=True,
-#               handler_name="handler",
-#               region_name='us-east-1')
-
-
+stack_name = 'RajivTestStack'
 
 if __name__ == '__main__':
     region = 'us-east-1'
     import boto3
 
-    #     AWSTemplateFormatVersion: '2010-09-09'
-    #     Transform: AWS::Serverless - 2016 - 10 - 31
-    #     Resources:
-    #     CreateThumbnail:
-    #     Type: AWS::Serverless::Function
-    #     Properties:
-    #     Handler: handler
-    #     Runtime: runtime
-    #     Timeout: 60
-    #     Policies: AWSLambdaExecute
-    #     Events:
-    #     Type: S3
-    #     Properties:
-    #     Bucket: !Ref
-    #     SrcBucket
-    #     Events: s3:ObjectCreated: *
+    # test_lambda_template = {
+    #     'AWSTemplateFormatVersion': '2010-09-09',
+    #     'Transform': 'AWS::Serverless-2016-10-31',
+    #     'Resources': {
+    #         'CopyS3RajivCloudF': {
+    #             'Type': 'AWS::Serverless::Function',
+    #             'Properties': {
+    #                 "CodeUri": 's3://thescore-tmp/CopyS3Lambda',
+    #                 "Handler": 'lambda.handler',
+    #                 "Runtime": 'python3.6',
+    #                 "Timeout": 300,
+    #                 "Role": 'arn:aws:iam::027995586716:role/lambda_s3_exec_role'
+    #             },
     #
-    # SrcBucket:
-    # Type: AWS::S3::Bucket
+    #         },
+    #         "AliasForMyApp": {
+    #             "Type": "AWS::Lambda::Alias",
+    #             "Properties": {
+    #                 "FunctionName": {"Ref": "CopyS3RajivCloudF"},
+    #                 "FunctionVersion": "$LATEST",
+    #                 "Name": "staging"
+    #             }
+    #         }
+    #
+    #     }
+    #
+    # }
+
     test_lambda_template = {
         'AWSTemplateFormatVersion': '2010-09-09',
         'Transform': 'AWS::Serverless-2016-10-31',
         'Resources': {
-            'CopyS3Rajiv': {
+            'CopyS3RajivCloudF': {
                 'Type': 'AWS::Serverless::Function',
 
                 'Properties': {
@@ -74,24 +48,46 @@ if __name__ == '__main__':
                     "Handler": 'lambda.handler',
                     "Runtime": 'python3.6',
                     "Timeout": 300,
-                    'Policies': 'AWSLambdaExecute'
-                },
-                'Events': {
-                    'Type': 'S3',
-                    'Properties': {
-                        "Bucket": '!Ref SrcBucket',
-                        "Events": 's3:ObjectCreated:*'
+                    "Role": 'arn:aws:iam::027995586716:role/lambda_s3_exec_role',
+
+                    'Events': {
+                        'RajivCopyEvent': {
+                            'Type': 'S3',
+                            'Properties': {
+                                "Bucket": {"Ref": "SrcBucket"},
+                                "Events": "s3:ObjectCreated:*"
+
+                            }
+                        }
 
                     }
+                },
 
-                }
             },
+
+            "AliasForMyApp": {
+                "Type": "AWS::Lambda::Alias",
+                "Properties": {
+                    "FunctionName": {"Ref": "CopyS3RajivCloudF"},
+                    "FunctionVersion": "$LATEST",
+                    "Name": "staging"
+                }
+            }
+
+            ,
             'SrcBucket': {
                 "Type": "AWS::S3::Bucket",
                 "Properties": {
                     "BucketName": 'thescore-cloudfront-trial',
+                    # "NotificationConfiguration": {
+                    #     "LambdaConfigurations": [{
+                    #         "Function": {"Ref": "CopyS3RajivCloudF"},
+                    #         "Event": "s3:ObjectCreated:*"
+                    #
+                    #     }]
+                    # }
                 }
-            }
+            },
 
         }
 
@@ -115,24 +111,22 @@ if __name__ == '__main__':
     #
     # )
 
-    # response = client.create_change_set(
-    #     StackName='RajivTestStack',
-    #     TemplateBody=json.dumps(test_lambda_template),
-    #     # ResourceTypes=[
-    #     #     "AWS::Lambda::Function",
-    #     #     "AWS::S3::Bucket"
-    #     # ],
-    #     Capabilities=['CAPABILITY_IAM'],
-    #     ChangeSetName='a',
-    #     Description='Rajiv ChangeSet Description',
-    #     ChangeSetType='CREATE'
-    # )
-    #
-    # pprint(response)
+    try:
+        response = client.delete_stack(
+            StackName=stack_name
+        )
+        pprint('Change Set Deleted')
+    except:
+        pprint('ChangeSet did not exist')
+        pass
 
-    response = client.execute_change_set(
+    response = client.create_change_set(
+        StackName=stack_name,
+        TemplateBody=json.dumps(test_lambda_template),
+        Capabilities=['CAPABILITY_IAM'],
         ChangeSetName='a',
-        StackName='RajivTestStack',
+        Description='Rajiv ChangeSet Description',
+        ChangeSetType='CREATE'
     )
 
     pprint(response)

@@ -49,16 +49,19 @@ def copy_to_buckets(conf, bucket_key_pairs, dest_func):
         aws.copy_from_s3_to_s3(conf, bucket, key, dest_bucket, dest_key)
 
 
-class CreateFileLambda(object):
-    def __rshift__(self, node_or_nodes):
-        children = util.listify(node_or_nodes)
-        child = children[0]
-        handler_func = self.make_handler_func(child)
-        lambda_leaf = AWSLambda('CreateFileLambda',
-                                handler=handler_func)
+class CreateFileLambda(Leaf):
+    def __init__(self):
+        super(CreateFileLambda, self).__init__('Test CreateFileLambda Leaf Value Rajiv ')
 
-        # TODO: This could be delegated to a Leaf Class?
-        return Composite(lambda_leaf, children)
+    # def __rshift__(self, node_or_nodes):
+    #     children = util.listify(node_or_nodes)
+    #     child = children[0]
+    #     handler_func = self.make_handler_func(child)
+    #     lambda_leaf = AWSLambda('CreateFileLambda',
+    #                             handler=handler_func)
+    #
+    #     # TODO: This could be delegated to a Leaf Class?
+    #     return Composite(lambda_leaf, children)
 
     @staticmethod
     def make_handler_func(s3_node):

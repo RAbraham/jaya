@@ -42,16 +42,16 @@ from jaya.core import Pipeline
 
 if __name__ == '__main__':
     region = 'us-east-1'
-    # p = CreateFileLambda() >> S3(bucket='yahoo---dill-bucket', aws_region='us-east-1')
+    # p = CreateFileLambda() >> S3(bucket='yahoo---dill-bucket', region_name='us-east-1')
 
-    p = CopyS3Lambda({}) >> S3(bucket='thescore-demo-destination', aws_region=region)
-    # p = CopyS3Lambda({}) >> [S3(bucket='thescore-demo-destination', aws_region=region),
-    #                          S3(bucket='thescore-demo-destination1', aws_region=region)]
-    # p = CopyS3Lambda({}) >> S3(bucket='thescore-demo-destination', aws_region=region)
+    p = CopyS3Lambda({}) >> S3(bucket='thescore-demo-destination', region_name=region)
+    # p = CopyS3Lambda({}) >> [S3(bucket='thescore-demo-destination', region_name=region),
+    #                          S3(bucket='thescore-demo-destination1', region_name=region)]
+    # p = CopyS3Lambda({}) >> S3(bucket='thescore-demo-destination', region_name=region)
     # p = CopyS3Lambda({}) >> S3(destination_func=lambda b, k: (b + '_new_yahoo', k + '_new_yahoo_key'))
     # p = CopyS3Lambda({}) >> [S3(destination_func=lambda b, k: (b + '_new_yahoo1', k + '_new_yahoo_key1')),
     #                          S3(destination_func=lambda b, k: (b + '_new_yahoo2', k + '_new_yahoo_key2'))]
-    aws_lambda = p.root()
+    aws_lambda = p.value()
     # a_path = '/tmp/a_lambda_package.zip'
     # create_lambda_package(aws_lambda, a_path)
     # deploy_lambda_package(path)
@@ -72,9 +72,9 @@ if __name__ == '__main__':
     # pprint('__path__' in jl.__dict__)
     # pprint('__path__' in util.__dict__)
     # print(util.__file__)
-    # p = S3(bucket='thescore-demo-source', aws_region=region) \
+    # p = S3(bucket='thescore-demo-source', region_name=region) \
     #     >> CopyS3Lambda({}) \
-    #     >> S3(bucket='thescore-demo-destination', aws_region=region)
+    #     >> S3(bucket='thescore-demo-destination', region_name=region)
     # piper = Pipeline('copy_alan_kay', [p])
     # deploy_pipeline(piper)
     pass

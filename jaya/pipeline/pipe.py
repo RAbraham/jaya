@@ -7,8 +7,8 @@ class Tree(object):
 
 
 class Composite(Tree):
-    def __init__(self, root, children):
-        self._root = root
+    def __init__(self, value, children):
+        self._value = value
         self._children = children
 
     def __rshift__(self, one_or_list):
@@ -29,18 +29,21 @@ class Composite(Tree):
             return Composite(self, self._update_edge(self._children[0], new_leaves))
 
     def root(self):
-        return self._root
+        return self._value
 
     def children(self):
         # return [c.root() for c in self._children]
         return self._children
+
+    def value(self):
+        return self._value
 
     @staticmethod
     def _update_edge(child, new_leaves):
         return [child.update_edge(new_leaves)]
 
     def __repr__(self):
-        return 'Composite(' + str(self._root) + ',' + str(self._children) + ')'
+        return 'Composite(' + str(self._value) + ',' + str(self._children) + ')'
 
     def __hash__(self):
         return hash(frozenset(self.__dict__))
@@ -70,19 +73,3 @@ class Leaf(Tree):
         return []
 
     pass
-
-# class Leaf(Tree):
-#     def __init__(self, value):
-#         self.value = value
-#
-#     def __len__(self):
-#         return 1
-#
-#     def __rshift__(self, other):
-#
-#     # def __pow__(self, *children):
-#     #     self.children.extend(children)
-#     #     return self
-#
-#     def __repr__(self):
-#         return 'Node value:' + str(self.value)
