@@ -19,9 +19,18 @@ class S3(Leaf):
 
 
 class AWSLambda(Leaf):
-    def __init__(self, name, handler, dependencies):
-        self.handler = handler
+    def __init__(self, name, handler, region_name, memory=1536, timeout=300, alias=None, dependencies=None):
         self.name = name
+        self.handler = handler
+        self.region_name = region_name
+        self.memory = memory
+        self.timeout = timeout
+        self.service = Service(aws.LAMBDA)
+        self.alias = alias
+
+        if not dependencies:
+            dependencies = []
+
         self.dependency_paths = [module_path(d) for d in dependencies]
         super(AWSLambda, self).__init__([self.name, self.handler, self.dependency_paths])
 

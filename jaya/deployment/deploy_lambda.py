@@ -217,6 +217,37 @@ def deploy_lambda_package(aws_lambda_function,
            )
 
 
+def deploy_lambda_package_new(environment,
+                              aws_lambda_function,
+                              working_directory='/tmp',
+                              serialized_file_name='handler.dill'
+                              ):
+    serialized_file_path = working_directory + '/' + serialized_file_name
+    import os
+    import os.path
+    if os.path.isfile(serialized_file_path):
+        os.remove(serialized_file_path)
+    lambda_name = aws_lambda_function.name
+    lambda_template_file = config.project_root() + '/core/template/lambda.py'
+    util.pickle_and_save_dill(aws_lambda_function.handler, serialized_file_path)
+    real_root = os.path.join(config.project_root(), '..')
+
+    python3_package_dir = real_root + '/venv/' + 'lib/python3.6/site-packages'
+    deploy(environment,
+           lambda_template_file,
+           lambda_name,
+           real_root + '/venv',
+           aws_lambda_function.dependency_paths + [serialized_file_path],
+           memory=aws_lambda_function.memory,
+           timeout=aws_lambda_function.timeout,
+           update=True,
+           lambda_name=lambda_name,
+           region_name=aws_lambda_function.region_name,
+           python_package_dir=python3_package_dir,
+           is_python3=True
+           )
+
+
 def deploy_pipeline(pipeline):
     pipe = pipeline.pipes[0]
 

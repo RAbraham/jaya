@@ -11,6 +11,17 @@ from jaya.config import config
 import jaya
 
 
+class EchoLambda(AWSLambda):
+    def __init__(self, region_name, alias):
+        super(EchoLambda, self).__init__('EchoLambda', echo_handler, region_name, alias=alias, dependencies=[jaya])
+
+
+def echo_handler(event, context):
+    from pprint import pprint
+    pprint('In Echo Handler')
+    pprint(event)
+
+
 class CopyS3Lambda(Leaf):
     def __init__(self, configuration):
         self.configuration = configuration

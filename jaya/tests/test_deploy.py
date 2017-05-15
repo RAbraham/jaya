@@ -1,6 +1,6 @@
 import unittest
 # from jaya.pipeline.pipe import Leaf, Composite
-from jaya.util.aws_lambda.aws_lambda_utils import CreateFileLambda
+from jaya.util.aws_lambda.aws_lambda_utils import EchoLambda
 from jaya.core import S3, Pipeline
 from jaya.deployment import deploy
 from jaya.config import config
@@ -19,7 +19,7 @@ class DeployTestCase(unittest.TestCase):
 
         piper = Pipeline('my-first', [p])
 
-        info = deploy.create_deploy_stack(piper)
+        info = deploy.create_deploy_stack_info(piper)
         expected_output = {deploy.LAMBDA: {},
                            deploy.S3: {'tsa-test-bucket1': {deploy.REGION_NAME: 'us-east-1'}},
                            deploy.S3_NOTIFICATION: {}}
@@ -28,13 +28,34 @@ class DeployTestCase(unittest.TestCase):
         self.assertEqual(expected_output, info)
 
     def test_s3_lambda(self):
-        s1 = S3('tsa-lambda-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
-        l1 = CreateFileLambda()
+        s1 = S3('tsa-rajiv-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
+        environment = 'development'
+        l1 = EchoLambda('us-east-1', environment)
         p = s1 >> l1
         piper = Pipeline('two-node-pipe', [p])
-        info = deploy.create_deploy_stack(piper)
+        info = deploy.create_deploy_stack_info(piper)
+        # pprint(info)
 
-        print(dictify(info))
+        # expected_output = {'lambda': {'EchoLambda': {'s3_source_bucket': 'tsa-lambda-bucket'}},
+        #                    's3': {'tsa-lambda-bucket': {'region_name': 'us-east-1'}},
+        #                    's3_notification': {'tsa-lambda-bucket': [{'lambda_name': 'EchoLambda',
+        #                                                               'triggers': ['s3:ObjectCreated:*']}]}}
+        # self.assertEqual(expected_output, info)
+
+        # conf = config.get_aws_config(environment)
+        # deploy.deploy_stack_info(conf, environment, info)
+
+
+        # def test_s3_lambda(self):
+        #     s1 = S3('tsa-lambda-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
+        #     s2 = S3('tsa-lambda-dest-bucket', 'us-east-1')
+        #     l1 = CopyS3Lambda({})
+        #     p = s1 >> l1 >> s2
+        #     piper = Pipeline('two-node-pipe', [p])
+        #     info = deploy.create_deploy_stack(piper)
+        #
+        #     print(dictify(info))
+
 
 def dictify(a_dict):
     return json.loads(json.dumps(a_dict))
