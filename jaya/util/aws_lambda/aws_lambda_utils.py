@@ -22,16 +22,22 @@ def echo_handler(event, context):
     pprint(event)
 
 
-class CopyS3Lambda(Leaf):
-    def __init__(self, configuration):
+class CopyS3Lambda(AWSLambda):
+    def __init__(self, configuration, region_name, alias):
         self.configuration = configuration
+        self.region_name = region_name
+        self.alias = alias
+        super(CopyS3Lambda, self).__init__('CopyS3Lambda', None, region_name, alias=alias, dependencies=[jaya])
 
     def __rshift__(self, node_or_nodes):
+        print('In CopyS3Lambda Rshift')
         children = util.listify(node_or_nodes)
         dest_funcs = [self.make_dest_func(child) for child in children]
         handler_func = make_handler_func(dest_funcs)
         lambda_leaf = AWSLambda('CopyS3Lambda',
                                 handler=handler_func,
+                                region_name=self.region_name,
+                                alias=self.alias,
                                 dependencies=[jaya])
         return Composite(lambda_leaf, children)
 
@@ -57,6 +63,8 @@ def copy_to_buckets(conf, bucket_key_pairs, dest_func):
     from jaya.lib import aws
     for bucket, key in bucket_key_pairs:
         dest_bucket, dest_key = dest_func(bucket, key)
+        print('Rajiv: Dest Bucket:' + dest_bucket)
+        print('Rajiv: Dest Key:' + dest_key)
         aws.copy_from_s3_to_s3(conf, bucket, key, dest_bucket, dest_key)
 
 

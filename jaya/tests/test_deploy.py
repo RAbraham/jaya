@@ -1,6 +1,6 @@
 import unittest
 # from jaya.pipeline.pipe import Leaf, Composite
-from jaya.util.aws_lambda.aws_lambda_utils import EchoLambda
+from jaya.util.aws_lambda.aws_lambda_utils import EchoLambda, CopyS3Lambda
 from jaya.core import S3, Pipeline
 from jaya.deployment import deploy
 from jaya.config import config
@@ -56,6 +56,35 @@ class DeployTestCase(unittest.TestCase):
         #
         #     print(dictify(info))
 
+    # def test_s3_lambda_s3(self):
+    #     region = 'us-east-1'
+    #     environment = 'development'
+    #     conf = config.get_aws_config(environment)
+    #     s1 = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS])
+    #     l1 = CopyS3Lambda({}, region, environment)
+    #     s2 = S3('tsa-rajiv-bucket2', 'us-east-1')
+    #     p = s1 >> l1 >> s2
+    #     # pprint(p)
+    #     piper = Pipeline('three-node-pipe', [p])
+    #     info = deploy.create_deploy_stack_info(piper)
+    #     # pprint(info)
+    #
+    #     # deploy.deploy_stack_info(conf, environment, info)
+
+    # def test_multi_hop_node(self):
+    #     region = 'us-east-1'
+    #     environment = 'development'
+    #     conf = config.get_aws_config(environment)
+    #     s1 = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS])
+    #     l1 = CopyS3Lambda({}, region, environment)
+    #     s2 = S3('tsa-rajiv-bucket2', 'us-east-1')
+    #     p = s1 >> l1 >> s2
+    #     # pprint(p)
+    #     piper = Pipeline('three-node-pipe', [p])
+    #     info = deploy.create_deploy_stack_info(piper)
+    #     # pprint(info)
+    #
+    #     # deploy.deploy_stack_info(conf, environment, info)
 
 def dictify(a_dict):
     return json.loads(json.dumps(a_dict))

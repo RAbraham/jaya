@@ -1,6 +1,6 @@
 import unittest
 from jaya.pipeline.pipe import Leaf, Composite
-
+from pprint import pprint
 
 class PipelineTestCase(unittest.TestCase):
     def test_single_node_tree(self):
@@ -22,12 +22,11 @@ class PipelineTestCase(unittest.TestCase):
         pass
 
     def test_three_node_trees(self):
-        n1 = Leaf(5)
-        n2 = Leaf(6)
-        n3 = Leaf(7)
+        n1 = Leaf(1)
+        n2 = Leaf(2)
+        n3 = Leaf(3)
         tree = n1 >> n2 >> n3
-
-        # self.assertEqual(tree.children(), [n2])
+        self.assertEqual(tree.children(), [n2])
         self.assertEqual(tree.children(), [Composite(n2, [n3])])
         self.assertEqual(tree.children()[0].children(), [n3])
 

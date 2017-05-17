@@ -18,7 +18,6 @@ class Composite(Tree):
         :param other:
         :return:
         '''
-        pass
         children = util.listify(one_or_list)
         return self.update_edge(children)
 
@@ -26,7 +25,9 @@ class Composite(Tree):
         if len(self._children) > 1:
             raise ValueError("Can't add leaves to a node with multiple children")
         else:
-            return Composite(self, self._update_edge(self._children[0], new_leaves))
+            # return Composite(self, self._update_edge(self._children[0], new_leaves))
+            # return Composite(self._value, self._update_edge(self._children[0], new_leaves))
+            return Composite(self._value, self._update_edge(self._children[0], new_leaves))
 
     def root(self):
         return self._value
@@ -66,8 +67,11 @@ class Leaf(Tree):
         children = util.listify(one_or_list)
         return Composite(self, children)
 
+    # def update_edge(self, new_leaves):
+    #     return Composite(self, new_leaves)
+
     def update_edge(self, new_leaves):
-        return Composite(self, new_leaves)
+        return self >> new_leaves
 
     def children(self):
         return []

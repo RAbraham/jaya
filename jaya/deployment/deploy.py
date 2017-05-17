@@ -34,7 +34,6 @@ def create_deploy_stack_info(a_pipeline):
 def process_pipeline(aggregator, pipe):
     starting_node = pipe
     visited_node = starting_node
-
     if isinstance(visited_node, Leaf):
         process_leaf(aggregator, visited_node)
     elif isinstance(visited_node, Composite):
@@ -53,7 +52,6 @@ def process_leaf(aggregator, visited_node):
 
 def process_composite_node(aggregator, visited_node):
     node_value = visited_node.value()
-
     if node_value.service.name == aws.S3:
 
         bucket_name = node_value.bucket
@@ -71,6 +69,8 @@ def process_composite_node(aggregator, visited_node):
                 aggregator[S3_NOTIFICATION][bucket_name].append(notification(lambda_name, node_value.on))
 
         aggregator[S3][bucket_name] = {REGION_NAME: node_value.region_name}
+    elif node_value.service.name == aws.LAMBDA:
+        aggregator[LAMBDA][node_value.name][LAMBDA_INSTANCE] = node_value
 
 
 def notification(lambda_name, triggers):
