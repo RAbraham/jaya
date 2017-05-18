@@ -3,8 +3,8 @@
 
 
 # Features
-## Readability Deployability
-Currently(STATE OF THE ART, KONRAD!), we specify our deployment as a `JSON` dictionary. For a very simple pipeline, check out the PSEUDO ABSOLUTELY INCORRECT CloudFormation JSON Dict
+## Readability
+Currently(STATE OF THE ART, KONRAD!), we can specify our deployment as a `JSON` dictionary. For a very simple pipeline, check out the PSEUDO ABSOLUTELY INCORRECT CloudFormation JSON Dict
  
 ```json
 {
@@ -81,7 +81,7 @@ piper = Pipeline("three-node-pipe", [p])
 
 There are many benefits here:
 * We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket 
-* In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code
+* In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the Python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code
 * We have a class which represents a lambda function i.e. `AWSLambda` (`CopyS3Lambda` internally creates an `AWSLambda` instance). We now have a *language* to describe a Lambda as a Python class.
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
