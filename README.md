@@ -80,8 +80,10 @@ piper = Pipeline("three-node-pipe", [p])
 ```
 
 There are many benefits here:
-* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket 
-* In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the Python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code
+* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket. Granted that, we could compose the data too in the JSON dict. It may be personal opinion that the tree like syntax reads better. Imagine a comple multi-child tree.
+
+* In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the Python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code. We blur the line between functionality and deployment specific information. 
+
 * We have a class which represents a lambda function i.e. `AWSLambda` (`CopyS3Lambda` internally creates an `AWSLambda` instance). We now have a *language* to describe a Lambda as a Python class.
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
