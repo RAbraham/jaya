@@ -80,7 +80,12 @@ piper = Pipeline("three-node-pipe", [p])
 ```
 
 There are many benefits here:
-* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket. Granted that, we could compose the data too in the JSON dict. It may be personal opinion that the tree like syntax reads better. Imagine a comple multi-child tree.
+* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket. Granted that, we could compose the data too in the JSON dict. It may be personal opinion that the tree like syntax reads better. Imagine a complex multi-child tree.
+```python
+p = n1 >> n2 >> [n3 >> n4 >> [n7,
+                              n8],
+                 n5 >> n6]
+```
 
 * In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the Python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code. We blur the line between functionality and deployment specific information. 
 
