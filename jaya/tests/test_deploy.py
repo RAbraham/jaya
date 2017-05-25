@@ -27,13 +27,13 @@ class DeployTestCase(unittest.TestCase):
         # deploy.deploy_stack_info(conf, info)
         self.assertEqual(expected_output, info)
 
-    def test_s3_lambda(self):
-        s1 = S3('tsa-rajiv-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
-        environment = 'development'
-        l1 = EchoLambda('us-east-1', environment)
-        p = s1 >> l1
-        piper = Pipeline('two-node-pipe', [p])
-        info = deploy.create_deploy_stack_info(piper)
+    # def test_s3_lambda(self):
+    #     s1 = S3('tsa-rajiv-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
+    #     environment = 'development'
+    #     l1 = EchoLambda('us-east-1', environment)
+    #     p = s1 >> l1
+    #     piper = Pipeline('two-node-pipe', [p])
+    #     info = deploy.create_deploy_stack_info(piper)
         # pprint(info)
 
         # expected_output = {'lambda': {'EchoLambda': {'s3_source_bucket': 'tsa-lambda-bucket'}},
@@ -71,20 +71,20 @@ class DeployTestCase(unittest.TestCase):
     #
     #     # deploy.deploy_stack_info(conf, environment, info)
 
-    # def test_multi_hop_node(self):
-    #     region = 'us-east-1'
-    #     environment = 'development'
-    #     conf = config.get_aws_config(environment)
-    #     s1 = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS])
-    #     l1 = CopyS3Lambda({}, region, environment)
-    #     s2 = S3('tsa-rajiv-bucket2', 'us-east-1')
-    #     p = s1 >> l1 >> s2
-    #     # pprint(p)
-    #     piper = Pipeline('three-node-pipe', [p])
-    #     info = deploy.create_deploy_stack_info(piper)
-    #     # pprint(info)
-    #
-    #     # deploy.deploy_stack_info(conf, environment, info)
+    def test_multi_hop_node(self):
+        region = 'us-east-1'
+        environment = 'development'
+        conf = config.get_aws_config(environment)
+
+        p = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS]) \
+            >> CopyS3Lambda({}, region, environment) \
+            >> S3('tsa-rajiv-bucket2', 'us-east-1')
+
+        piper = Pipeline('three-node-pipe', [p])
+        info = deploy.create_deploy_stack_info(piper)
+
+        deploy.deploy_stack_info(conf, environment, info)
+
 
 def dictify(a_dict):
     return json.loads(json.dumps(a_dict))
