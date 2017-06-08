@@ -50,9 +50,15 @@ class InMemoryAws(object):
 
         pass
 
+class InMemoryS3(object):
+    from moto import mock_s3
+    import boto3
+    def put(self, bucket, key, file):
+        
+    pass
 def create_in_memory_aws(a_piper):
 
-    return InMemoryAws(s3)
+    return InMemoryAws(InMemoryS3())
     pass
 
 

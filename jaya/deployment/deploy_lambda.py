@@ -5,6 +5,10 @@ from jaya.lib import util
 from jaya.config import config
 from botocore.exceptions import ClientError
 from jaya.lib import util
+from localstack.utils.aws import aws_stack
+from localstack.mock.apis import lambda_api
+from localstack.utils import testutil
+from io import BytesIO
 
 MAX_LAMBDA_MEMORY = 1536
 MAX_LAMBDA_TIMEOUT = 300
@@ -41,7 +45,8 @@ def make_zipfile(output_filename, source_dirs_or_files):
 def deploy(environment, lambda_file, lambda_description, virtual_env_path, dependency_paths=None,
            memory=MAX_LAMBDA_MEMORY, timeout=MAX_LAMBDA_TIMEOUT, update=False, lambda_name=None, region_name=None,
            python_package_dir=None,
-           is_python3=False):
+           is_python3=False,
+           mock=False):
     file_name = os.path.basename(lambda_file).split('.')[0]
 
     if not dependency_paths:
@@ -68,7 +73,8 @@ def deploy(environment, lambda_file, lambda_description, virtual_env_path, depen
                          update=update,
                          handler_name=file_name,
                          region_name=region_name,
-                         is_python3=is_python3)
+                         is_python3=is_python3,
+                         mock=mock)
 
 
 # code_paths is a list of modules and packages that should be packaged in the lambda
@@ -85,7 +91,8 @@ def deploy_lambda(environment,
                   zipfile_path=None,
                   handler_name=None,
                   region_name=None,
-                  is_python3=False
+                  is_python3=False,
+                  mock=False
                   ):
     conf = config.get_aws_config(environment)
 
@@ -102,28 +109,52 @@ def deploy_lambda(environment,
     make_zipfile(output_filename, code_paths)
 
     # IAM
-    iam = aws.client(conf, 'iam')
-    role = iam.get_role(RoleName=role_name)['Role']
+    handler_name = handler_name + '.handler'
+    lambda_func = None
+    if not mock:
+        lambda_client = aws.client(conf, 'lambda', region_name=region_name)
+        iam = aws.client(conf, 'iam')
+        role = iam.get_role(RoleName=role_name)['Role']
+        lambda_func = aws.create_lambda(conf,
+                                        lambda_name,
+                                        output_filename,
+                                        role,
+                                        handler_name,
+                                        lambda_description,
+                                        lsize=memory,
+                                        timeout=timeout,
+                                        update=update,
+                                        region_name=region_name,
+                                        is_python3=is_python3)
+    else:
+        print('Rajiv: In Mock AWS')
+        lambda_client = aws_stack.connect_to_service('lambda')
+        s3_client = aws_stack.connect_to_service('s3')
+        bucket_name = 'test_bucket_lambda'
+        bucket_key = 'test_lambda.zip'
+        with open(output_filename, "rb") as file_obj:
+            zip_file = file_obj.read()
 
-    lambda_func = aws.create_lambda(conf,
-                                    lambda_name,
-                                    output_filename,
-                                    role,
-                                    handler_name + '.handler',
-                                    lambda_description,
-                                    lsize=memory,
-                                    timeout=timeout,
-                                    update=update,
-                                    region_name=region_name,
-                                    is_python3=is_python3)
+        s3_client.create_bucket(Bucket=bucket_name)
+        s3_client.upload_fileobj(BytesIO(zip_file), bucket_name, bucket_key)
+        lambda_func = lambda_client.create_function(
+            FunctionName=lambda_name,
+            Runtime='python3.6',
+            Role='r1',
+            Handler=handler_name,
+            Code={
+                'S3Bucket': bucket_name,
+                'S3Key': bucket_key
+            }
+        )
 
     # Add Alias
-    lambda_client = aws.client(conf, 'lambda', region_name=region_name)
 
     lambda_client.delete_alias(
         FunctionName=lambda_name,
         Name=environment
     )
+
     lambda_client.create_alias(
         FunctionName=lambda_name,
         Name=environment,
@@ -220,10 +251,10 @@ def deploy_lambda_package(aws_lambda_function,
 def deploy_lambda_package_new(environment,
                               aws_lambda_function,
                               working_directory='/tmp',
-                              serialized_file_name='handler.dill'
+                              serialized_file_name='handler.dill',
+                              mock=False
                               ):
     serialized_file_path = working_directory + '/' + serialized_file_name
-    import os
     import os.path
     if os.path.isfile(serialized_file_path):
         os.remove(serialized_file_path)
@@ -244,7 +275,8 @@ def deploy_lambda_package_new(environment,
            lambda_name=lambda_name,
            region_name=aws_lambda_function.region_name,
            python_package_dir=python3_package_dir,
-           is_python3=True
+           is_python3=True,
+           mock=mock
            )
 
 

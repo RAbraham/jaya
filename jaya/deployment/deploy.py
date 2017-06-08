@@ -3,7 +3,8 @@ from collections import defaultdict
 from jaya.lib import aws as aws_lib
 from jaya.pipeline.pipe import Leaf, Composite
 from pprint import pprint
-
+from localstack.utils.aws import aws_stack
+from localstack.mock import infra
 from jaya.deployment import deploy_lambda
 
 LAMBDA = 'lambda'
@@ -92,3 +93,39 @@ def deploy_stack_info(conf, environment, info):
                                                environment,
                                                prefix=lambda_info.get('prefix', None),
                                                region_name=lambda_instance.region_name)
+
+
+def deploy_stack_info_local(info):
+    s3_buckets = info[S3]
+    for bucket, bucket_info in s3_buckets.items():
+        aws_lib.create_s3_bucket({'aws_id': 'rajiv_id', 'aws_key': 'rajiv_key'}, bucket, bucket_info[REGION_NAME])
+
+    # lambdas = info[LAMBDA]
+    # for lambda_name, lambda_info in lambdas.items():
+    #     lambda_instance = lambda_info[LAMBDA_INSTANCE]
+    #     deploy_lambda.deploy_lambda_package_new(environment, lambda_info[LAMBDA_INSTANCE])
+    #     aws_lib.add_s3_notification_for_lambda(conf,
+    #                                            lambda_info[S3_SOURCE_BUCKET_NAME],
+    #                                            lambda_name,
+    #                                            environment,
+    #                                            prefix=lambda_info.get('prefix', None),
+    #                                            region_name=lambda_instance.region_name)
+    #
+
+def deploy_stack_info_localstack(conf, environment, info):
+    s3_buckets = info[S3]
+    s3_resource = aws_stack.connect_to_resource('s3')
+    for bucket, bucket_info in s3_buckets.items():
+        s3_resource.create_bucket(Bucket=bucket)
+
+    lambdas = info[LAMBDA]
+    for lambda_name, lambda_info in lambdas.items():
+        lambda_instance = lambda_info[LAMBDA_INSTANCE]
+        deploy_lambda.deploy_lambda_package_new(environment, lambda_info[LAMBDA_INSTANCE], mock=True)
+        aws_lib.add_s3_notification_for_lambda(conf,
+                                               lambda_info[S3_SOURCE_BUCKET_NAME],
+                                               lambda_name,
+                                               environment,
+                                               prefix=lambda_info.get('prefix', None),
+                                               region_name=lambda_instance.region_name,
+                                               mock=True)

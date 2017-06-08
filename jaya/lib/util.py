@@ -162,11 +162,14 @@ def listify(item_or_items):
 
 
 def pickle_and_save_dill(a_func, path):
-    dill.dump(a_func, open(path, "wb"))
+    with open(path, "wb") as f:
+        dill.dump(a_func, f)
 
 
 def unpickle_handler_dill(path):
-    return dill.load(open(path, "rb"))
+    with open(path, "rb") as f:
+        r = dill.load(f)
+    return r
 
 
 def invoke_lambda_dill(event, context, a_lambda):

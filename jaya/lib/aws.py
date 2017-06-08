@@ -2,6 +2,7 @@ import boto3
 import json
 from jaya.config import config
 from jaya.lib import util
+from localstack.utils.aws import aws_stack
 
 FUNCTION_ARN = 'FunctionArn'
 DEFAULT_REGION = 'us-east-1'
@@ -274,14 +275,20 @@ def create_firehose_stream(conf,
     return response
 
 
-def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=None, prefix=None, region_name=None):
+def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=None, prefix=None, region_name=None,
+                                   mock=False):
     assert conf is not None, 'Configuration Dict Required, wtf'
     assert bucket_name is not None, 'Bucket Name Mandatory, wtf'
     assert lambda_name is not None, 'Lambda Name Mandatory, wtf'
 
     add = util.merge_dicts
     responses = []
-    lambda_client = client(conf, 'lambda', region_name=region_name)
+    if not mock:
+        lambda_client = client(conf, 'lambda', region_name=region_name)
+        s3 = resource(conf, 's3', region_name=region_name)
+    else:
+        lambda_client = aws_stack.connect_to_service('lambda')
+        s3 = aws_stack.connect_to_resource('s3')
 
     # Giving S3 permission to invoke the lambda
     action_name = 'InvokeFunction'
@@ -310,9 +317,8 @@ def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=Non
     add_response = lambda_client.add_permission(**add_permission_params)
     responses.append(add_response)
 
-    s3 = resource(conf, 's3', region_name=region_name)
     bucket_notification = s3.BucketNotification(bucket_name)
-    lambda_arn = get_lambda_info(conf, lambda_name, qualifier, region_name)[FUNCTION_ARN]
+    lambda_arn = get_lambda_info(conf, lambda_name, qualifier, region_name, lambda_client)[FUNCTION_ARN]
 
     lambda_configuration = {
         'LambdaFunctionArn': lambda_arn,
@@ -332,10 +338,12 @@ def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=Non
     return responses
 
 
-def get_lambda_info(conf, function_name, qualifier=None, region_name=None):
+def get_lambda_info(conf, function_name, qualifier=None, region_name=None, lambda_client=None):
+    if not lambda_client:
+        lambda_client = client(conf, 'lambda', region_name=region_name)
+
     kw = lambda_parameters(function_name, qualifier)
-    lambda_resource = client(conf, 'lambda', region_name=region_name)
-    response = lambda_resource.get_function_configuration(**kw)
+    response = lambda_client.get_function_configuration(**kw)
     return response
 
 

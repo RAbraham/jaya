@@ -1,7 +1,10 @@
 import dill
 
 handler_path = './handler.dill'
-h = dill.load(open(handler_path, "rb"))
+
+h = None
+with open(handler_path, "rb") as f:
+    h = dill.load(f)
 
 
 def handler(event, context):
