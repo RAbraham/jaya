@@ -1,6 +1,7 @@
 from jaya.pipeline.pipe import Leaf
 from . import aws
 
+PYTHON36 = 'python3.6'
 
 class S3(Leaf):
     ALL_CREATED_OBJECTS = 's3:ObjectCreated:*'
@@ -19,7 +20,7 @@ class S3(Leaf):
 
 
 class AWSLambda(Leaf):
-    def __init__(self, name, handler, region_name, memory=1536, timeout=300, alias=None, dependencies=None):
+    def __init__(self, name, handler, region_name, memory=1536, timeout=300, alias=None, dependencies=None, runtime=PYTHON36, description=None, virtual_environment_path=None):
         self.name = name
         self.handler = handler
         self.region_name = region_name
@@ -27,7 +28,10 @@ class AWSLambda(Leaf):
         self.timeout = timeout
         self.service = Service(aws.LAMBDA)
         self.alias = alias
-
+        self.runtime = runtime
+        self.description = description
+        # TODO: This should be mandatory. But we will later add a feature to take it from the Pipeline configuration anf fail only if that does not exist
+        self.virtual_environment_path = virtual_environment_path
         if not dependencies:
             dependencies = []
 

@@ -9,9 +9,15 @@ from localstack.utils.aws import aws_stack
 from localstack.mock.apis import lambda_api
 from localstack.utils import testutil
 from io import BytesIO
+import io
+
+LATEST_VERSION_TAG = '$LATEST'
+
+MOCK_ROLE = 'test-iam-role'
 
 MAX_LAMBDA_MEMORY = 1536
 MAX_LAMBDA_TIMEOUT = 300
+MOCK_CREDENTIALS = {'aws_id': 'rajiv_id', 'aws_key': 'rajiv_key'}
 
 
 def python_packages_for_env(virtual_env_path):
@@ -84,7 +90,7 @@ def deploy_lambda(environment,
                   role_name,
                   memory,
                   timeout,
-                  function_version='$LATEST',
+                  function_version=LATEST_VERSION_TAG,
                   lambda_description='',
                   alias_description='',
                   update=True,
@@ -280,6 +286,65 @@ def deploy_lambda_package_new(environment,
            )
 
 
+def deploy_lambda_package_local(aws_lambda_function,
+                                working_directory='/tmp',
+                                serialized_file_name='handler.dill'
+                                ):
+    serialized_file_path = working_directory + '/' + serialized_file_name
+    import os.path
+    if os.path.isfile(serialized_file_path):
+        os.remove(serialized_file_path)
+    lambda_template_name = 'lambda'
+    lambda_template_file = config.project_root() + '/core/template/{0}.py'.format(lambda_template_name)
+    util.pickle_and_save_dill(aws_lambda_function.handler, serialized_file_path)
+
+    python_packages = get_virtual_environment_packages(aws_lambda_function.virtual_environment_path)
+    common_folders = [config.lib_folder(), config.config_folder()]
+    handler_code = [lambda_template_file, serialized_file_path]
+    code_paths = python_packages + common_folders + aws_lambda_function.dependency_paths + handler_code
+    conn = aws.client(MOCK_CREDENTIALS, 'lambda')
+    conn.create_function(
+        FunctionName=aws_lambda_function.name,
+        Runtime=aws_lambda_function.runtime,
+        Role=MOCK_ROLE,
+        Handler=lambda_template_name + '.handler',
+        Code={
+            'ZipFile': make_local_zipfile(code_paths)
+        },
+        Description=aws_lambda_function.description,
+        Timeout=aws_lambda_function.timeout,
+        MemorySize=aws_lambda_function.memory,
+        Publish=True,
+    )
+
+    if aws_lambda_function.alias:
+        conn.create_alias(
+            FunctionName=aws_lambda_function.name,
+            Name=aws_lambda_function.alias,
+            FunctionVersion=LATEST_VERSION_TAG
+        )
+
+
+def get_virtual_environment_packages(venv_path):
+    lib_path = os.path.join(venv_path, 'lib')
+
+    site_packages_path = os.path.join(lib_path,
+                                      util.get_immediate_subdirectories(lib_path)[0],
+                                      'site-packages')
+
+    return util.get_children(site_packages_path)
+
+
+def make_local_zipfile(paths):
+    zip_output = io.BytesIO()
+    make_zipfile(zip_output, paths)
+    zip_output.seek(0)
+
+    return zip_output.read()
+
+    pass
+
+
 def deploy_pipeline(pipeline):
     pipe = pipeline.pipes[0]
 
@@ -330,16 +395,3 @@ def delete_firehose(application, environment, name):
         return response
     except ClientError:
         print('Firehose:{} was not found'.format(name))
-
-
-if __name__ == '__main__':
-    # deploy_do_etl_dev_lambda_only()
-    # deploy_v3_firehoses('staging')
-    # deploy_do_etl_staging_lambda_only()
-    # deploy_do_etl_production_lambda_only()
-    # deploy_etl_lambda('staging', 'copy_to_etl_inbound_staging')
-    # deploy_etl_lambda(APPLICATION.sports.name, 'staging', 'move_to_etl_in_process_staging')
-
-    # deploy_etl_firehose('esports', 'staging', 'v2_events')
-
-    pass

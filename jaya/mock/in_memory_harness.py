@@ -64,20 +64,36 @@ class S3Mock(object):
     def hi(self):
         print('Hi')
 
-    def __getattr__(self, name):
-        # def method(*args):
-        #     print("tried to handle unknown method " + name)
-        #     if args:
-        #         print("it had arguments: " + str(args))
+    def __getattr__(self, operation):
+        def method(*args, **kwargs):
+            result = getattr(self.s3_service, operation)(*args, **kwargs)
+            self.notify_observers(operation, args, kwargs)
+            return result
 
-        # def method(*args):
-        #     print("tried to handle unknown method " + name)
-        #     if args:
-        #         print("it had arguments: " + str(args))
-        # return method
-        print('METHOD NAME:' + name)
-        return getattr(self.s3_service, name)
-        pass
+        return method
+
+    def notify_observers(self, operation, args, kwargs):
+        for observer in self.observers_for(operation, args, kwargs):
+            observer.notify()
+
+    def observers_for(self, operation, args, kwargs):
+        # TODO: build suffix filter support
+        observers = []
+        bucket = kwargs['Bucket']
+        key = kwargs['Key']
+        filters = self.filters[operation][bucket]
+
+        for s3_filter in filters:
+            prefix = s3_filter['prefix']
+            _observers = s3_filter['observers']
+            if prefix == 'all':
+                # TODO: What if an actual prefix is 'all' :)?
+                observers.extend(_observers)
+            elif key.startswith(prefix):
+                observers.extend(_observers)
+
+        return observers
+
 
 
 if __name__ == '__main__':

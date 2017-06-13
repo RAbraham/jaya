@@ -27,6 +27,11 @@ def parent_dir(relative_file, level=1):
     return os.path.abspath(os.path.join(os.path.dirname(relative_file), *parent_dots))
 
 
+def get_immediate_subdirectories(a_dir):
+    return [name for name in os.listdir(a_dir)
+            if os.path.isdir(os.path.join(a_dir, name))]
+
+
 # Returns all immediate files and folders using full path
 def get_children(a_dir):
     children = os.listdir(a_dir)
