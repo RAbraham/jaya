@@ -46,6 +46,13 @@ class CopyS3Lambda(AWSLambda):
         return lambda b, k: tuple([s3_child.bucket, k])
 
 
+class MapS3ToFirehoseLambda(AWSLambda):
+    def __init__(self, **kwargs):
+        from pprint import pprint
+        pprint(kwargs)
+        pass
+
+
 def make_handler_func(dest_funcs):
     def handler(event, context):
         print('Using Module Path')

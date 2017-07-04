@@ -1,6 +1,6 @@
 from jaya.deployment import deploy
 from moto import mock_s3, mock_lambda
-
+from jaya.deployment import deploy_lambda
 
 def test(pipeline):
     return InMemoryHarness(pipeline)
@@ -95,28 +95,52 @@ class S3Mock(object):
         return observers
 
 
+def handler_func(event, context):
+    from datetime import datetime
+    file = '/Users/rabraham/dev-thescore/analytics/jaya/tmp/rajiv_tries.txt'
+    with open(file, 'a') as f:
+        f.write('\nHello Rajiv:' + str(datetime.utcnow()))
+
 
 if __name__ == '__main__':
     import io
     import boto3
     from jaya.lib import aws
 
-    conf = {'aws_key': None, "aws_id": None}
-    s3_jaya = S3Mock(aws.client(conf, 's3'))
 
-    s3_mock = mock_s3()
-    s3_mock.start()
+    # ***********
+    lambda_mock = mock_lambda()
 
-    file_content = io.BytesIO(b'Hi Rajiv')
-    source = 'tsa-rajiv-bucket1'
-    a_key = 'a_key'
-    s3_jaya.create_bucket(Bucket=source)
-    s3_jaya.put_object(Bucket=source, Key=a_key, Body=file_content)
-    response = s3_jaya.get_object(Bucket=source, Key=a_key)
-    data = response['Body'].read()
-    print('Data')
-    print(data)
-    s3_mock.stop()
+    lambda_mock.start()
+    from jaya.core import AWSLambda
+    import json
+
+    lambda_name = 'print-lambda'
+    us_east = 'us-east-1'
+    print_lambda = AWSLambda(lambda_name, handler_func, us_east)
+    deploy_lambda.deploy_lambda_package_local(print_lambda)
+    conn = boto3.client('lambda', us_east)
+    # success_result = conn.invoke(FunctionName=lambda_name,
+    #                              InvocationType='RequestResponse',
+    #                              Payload=json.dumps({'hi': 'Rajiv'}))
+    lambda_mock.stop()
+    # ***********
+    # conf = {'aws_key': None, "aws_id": None}
+    # s3_jaya = S3Mock(aws.client(conf, 's3'))
+    #
+    # s3_mock = mock_s3()
+    # s3_mock.start()
+    #
+    # file_content = io.BytesIO(b'Hi Rajiv')
+    # source = 'tsa-rajiv-bucket1'
+    # a_key = 'a_key'
+    # s3_jaya.create_bucket(Bucket=source)
+    # s3_jaya.put_object(Bucket=source, Key=a_key, Body=file_content)
+    # response = s3_jaya.get_object(Bucket=source, Key=a_key)
+    # data = response['Body'].read()
+    # print('Data')
+    # print(data)
+    # s3_mock.stop()
 
     # ***************************************
     # conf = {'aws_key': None, "aws_id": None}

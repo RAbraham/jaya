@@ -6,6 +6,7 @@ from localstack.utils.aws import aws_stack
 
 FUNCTION_ARN = 'FunctionArn'
 DEFAULT_REGION = 'us-east-1'
+DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecolumns"
 
 
 def resource(conf, resource_name, region_name=DEFAULT_REGION):
@@ -201,75 +202,55 @@ def create_firehose_stream(conf,
                            redshift_server,
                            redshift_database_name,
                            redshift_table_name,
-                           copy_options="format as json 'auto' gzip timeformat 'auto'",
-                           prefix=None):
-    # TODO: ClusterJDBCURL is a hardcoded string. how do I find it out given the redshift database name?
-    # redshift_client = client(config, 'redshift')
-    # response = redshift_client.describe_clusters(ClusterIdentifier=redshift_cluster_name)
-    # endpoint = response['Clusters'][0]['Endpoint']
-    # 'jdbc:redshift://tsa-test-redshift-cluster.coxi26yhkjnd.us-east-1.redshift.amazonaws.com:5439/dev'
-    # jdbc_url = 'jdbc:redshift://' + endpoint['Address'] + ':' + str(endpoint['Port']) + '/' + redshift_database_name
-    jdbc_url = 'jdbc:redshift://' + redshift_server + ':' + conf['db-port'] + '/' + conf['db-name']
-    # Response is something like:
-
-    # r = {u'Clusters': [{u'PubliclyAccessible': True, u'MasterUsername': 'analyst',
-    #                     u'VpcSecurityGroups': [{u'Status': 'active', u'VpcSecurityGroupId': 'sg-350b2b4c'}],
-    #                     u'ClusterPublicKey': 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCvNomWW6dhzjrZSOfOr+QVxR598+/IkKbGoLWI2TmM25Cf/NTA1m7kOD+HVpc8llhXUKOR9IWfd/xYGaUracZAJlG2M+kgt5JoC98YAZaJe46ZYBoUrQxjiKV4SM7kYQILjClelicYQtmG1QKglLdrRGKQqRvMzF3BobuhjNqPFlYN5s5st3R+/RSnCSi5nS16dfSBwaQz+uoaqOCaKZfQK3jCq7IZbsTJ1BxmX+Ax5W+Gftpu7FUeFPrpVOLENe+XABZD7UTKNnsQWG+d90C4+1GrC+QRCOAhnzj2lca6ShfMzRrbygaqUmQrn62PgW/1BRMDhPE38IxMO21CxAst Amazon-Redshift\n',
-    #                     u'NumberOfNodes': 1, u'PendingModifiedValues': {}, u'VpcId': 'vpc-7c16c618',
-    #                     u'ClusterVersion': '1.0', u'Tags': [], u'AutomatedSnapshotRetentionPeriod': 1,
-    #                     u'ClusterParameterGroups': [
-    #                         {u'ParameterGroupName': 'default.redshift-1.0', u'ParameterApplyStatus': 'in-sync'}],
-    #                     u'DBName': 'dev', u'PreferredMaintenanceWindow': 'fri:04:30-fri:05:00',
-    #                     u'Endpoint': {u'Port': 5439,
-    #                                   u'Address': 'tsa-test-redshift-cluster.coxi26yhkjnd.us-east-1.redshift.amazonaws.com'},
-    #                     u'IamRoles': [], u'AllowVersionUpgrade': True,
-    #                     u'ClusterSubnetGroupName': 'default', u'ClusterSecurityGroups': [],
-    #                     u'ClusterIdentifier': 'tsa-test-redshift-cluster', u'ClusterNodes': [
-    #         {u'NodeRole': 'SHARED', u'PrivateIPAddress': '172.31.26.57', u'PublicIPAddress': '52.4.160.63'}],
-    #                     u'AvailabilityZone': 'us-east-1d', u'NodeType': 'dc1.large', u'Encrypted': False,
-    #                     u'ClusterRevisionNumber': '1043', u'ClusterStatus': 'available'}],
-    #      'ResponseMetadata': {'HTTPStatusCode': 200, 'RequestId': '7169aa2a-fc33-11e5-99a6-c3af895ceb5a'}}
-
-    # print(response['Clusters'][0]['Endpoint']) gives below:
-    # {u'Port': 5439, u'Address': 'tsa-test-redshift-cluster.coxi26yhkjnd.us-east-1.redshift.amazonaws.com'}
-
+                           copy_options=DEFAULT_COPY_OPTIONS,
+                           holding_bucket=None,
+                           prefix=None,
+                           buffering_size_mb=128,
+                           buffering_interval_seconds=900,
+                           log_group=None,
+                           log_stream='RedshiftDelivery',
+                           ):
     c = client(conf, 'firehose')
 
     s3_params = {
         'RoleARN': role_arn,
-        'BucketARN': 'arn:aws:s3:::thescore-firehose',
-        # 'Prefix': 'string',
+        'BucketARN': 'arn:aws:s3:::' + holding_bucket,
         'BufferingHints': {
-            'SizeInMBs': 1,
-            'IntervalInSeconds': 60
+            'SizeInMBs': buffering_size_mb,
+            'IntervalInSeconds': buffering_interval_seconds
         },
         'CompressionFormat': 'GZIP',
         'EncryptionConfiguration': {
-            'NoEncryptionConfig': 'NoEncryption',
-            # 'KMSEncryptionConfig': {
-            #     'AWSKMSKeyARN': 'string'
-            # }
+            'NoEncryptionConfig': 'NoEncryption'
         }
     }
 
     if prefix:
         s3_params = util.merge_dicts(s3_params, {'Prefix': prefix})
 
+    jdbc_url = 'jdbc:redshift://' + redshift_server + ':' + conf['db-port'] + '/' + conf['db-name']
+    redshift_config = {'RoleARN': role_arn,
+                       'ClusterJDBCURL': jdbc_url,
+                       'CopyCommand': {'DataTableName': redshift_table_name,
+                                       'CopyOptions': copy_options},
+                       'Username': redshift_user_name,
+                       'Password': redshift_password,
+                       'S3Configuration': s3_params}
+
+    cloudwatch_params = {}
+    if log_group:
+        cloudwatch_params = {
+            'CloudWatchLoggingOptions': {
+                'Enabled': True,
+                'LogGroupName': log_group,
+                'LogStreamName': log_stream
+            }
+        }
+
+    updated_redshift_config = util.merge_dicts(redshift_config, cloudwatch_params)
     response = c.create_delivery_stream(
         DeliveryStreamName=delivery_stream_name,
-        RedshiftDestinationConfiguration={
-            'RoleARN': role_arn,
-            # 'ClusterJDBCURL': 'jdbc:redshift://tsa-test-redshift-cluster.coxi26yhkjnd.us-east-1.redshift.amazonaws.com:5439/dev',
-            'ClusterJDBCURL': jdbc_url,
-            'CopyCommand': {
-                'DataTableName': redshift_table_name,
-                # 'DataTableColumns': 'string',
-                'CopyOptions': copy_options
-            },
-            'Username': redshift_user_name,
-            'Password': redshift_password,
-            'S3Configuration': s3_params
-        }
+        RedshiftDestinationConfiguration=updated_redshift_config
     )
 
     return response

@@ -54,15 +54,15 @@ class DeployTestCase(unittest.TestCase):
         # deploy.deploy_stack_info(conf, environment, info)
 
 
-        # def test_s3_lambda(self):
-        #     s1 = S3('tsa-lambda-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
-        #     s2 = S3('tsa-lambda-dest-bucket', 'us-east-1')
-        #     l1 = CopyS3Lambda({})
-        #     p = s1 >> l1 >> s2
-        #     piper = Pipeline('two-node-pipe', [p])
-        #     info = deploy.create_deploy_stack(piper)
-        #
-        #     print(dictify(info))
+        def test_s3_lambda(self):
+            s1 = S3('tsa-lambda-bucket', 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
+            s2 = S3('tsa-lambda-dest-bucket', 'us-east-1')
+            l1 = CopyS3Lambda({})
+            p = s1 >> l1 >> s2
+            piper = Pipeline('two-node-pipe', [p])
+            info = deploy.create_deploy_stack(piper)
+
+            print(dictify(info))
 
     # def test_s3_lambda_s3(self):
     #     region = 'us-east-1'

@@ -10,6 +10,7 @@ from localstack.mock.apis import lambda_api
 from localstack.utils import testutil
 from io import BytesIO
 import io
+from pprint import pprint
 
 LATEST_VERSION_TAG = '$LATEST'
 
@@ -301,21 +302,32 @@ def deploy_lambda_package_local(aws_lambda_function,
     python_packages = get_virtual_environment_packages(aws_lambda_function.virtual_environment_path)
     common_folders = [config.lib_folder(), config.config_folder()]
     handler_code = [lambda_template_file, serialized_file_path]
-    code_paths = python_packages + common_folders + aws_lambda_function.dependency_paths + handler_code
+    # code_paths = python_packages + common_folders + aws_lambda_function.dependency_paths + handler_code
+    code_paths = handler_code
+
     conn = aws.client(MOCK_CREDENTIALS, 'lambda')
-    conn.create_function(
-        FunctionName=aws_lambda_function.name,
-        Runtime=aws_lambda_function.runtime,
-        Role=MOCK_ROLE,
-        Handler=lambda_template_name + '.handler',
-        Code={
-            'ZipFile': make_local_zipfile(code_paths)
-        },
-        Description=aws_lambda_function.description,
-        Timeout=aws_lambda_function.timeout,
-        MemorySize=aws_lambda_function.memory,
-        Publish=True,
-    )
+    zip_path = '/tmp/' + 'moto-rajiv' + '.zip'
+    make_local_zipfile(code_paths)
+    # with zipfile.ZipFile(zip_path, "r") as f:
+    #     for info in f.infolist():
+    #         print(info.filename, info.date_time, info.file_size, info.compress_size)
+    with zipfile.ZipFile(zip_path, "r", zipfile.ZIP_DEFLATED) as f:
+        pprint(f.namelist())
+
+    with open(zip_path, 'rb') as ziper:
+        conn.create_function(
+            FunctionName=aws_lambda_function.name,
+            Runtime=aws_lambda_function.runtime,
+            Role=MOCK_ROLE,
+            Handler=lambda_template_name + '.handler',
+            Code={
+                'ZipFile': ziper.read()
+            },
+            Description=aws_lambda_function.description,
+            Timeout=aws_lambda_function.timeout,
+            MemorySize=aws_lambda_function.memory,
+            Publish=True,
+        )
 
     if aws_lambda_function.alias:
         conn.create_alias(
@@ -326,23 +338,31 @@ def deploy_lambda_package_local(aws_lambda_function,
 
 
 def get_virtual_environment_packages(venv_path):
-    lib_path = os.path.join(venv_path, 'lib')
+    if venv_path:
+        lib_path = os.path.join(venv_path, 'lib')
 
-    site_packages_path = os.path.join(lib_path,
-                                      util.get_immediate_subdirectories(lib_path)[0],
-                                      'site-packages')
+        site_packages_path = os.path.join(lib_path,
+                                          util.get_immediate_subdirectories(lib_path)[0],
+                                          'site-packages')
 
-    return util.get_children(site_packages_path)
+        return util.get_children(site_packages_path)
+    else:
+        return []
 
+
+# def make_local_zipfile(paths):
+#     zip_output = io.BytesIO()
+#     make_zipfile(zip_output, paths)
+#     zip_output.seek(0)
+#
+#     return zip_output.read()
+#
+#     pass
 
 def make_local_zipfile(paths):
-    zip_output = io.BytesIO()
+    zip_output = '/tmp/' + 'moto-rajiv' + '.zip'
     make_zipfile(zip_output, paths)
-    zip_output.seek(0)
-
-    return zip_output.read()
-
-    pass
+    return zip_output
 
 
 def deploy_pipeline(pipeline):
