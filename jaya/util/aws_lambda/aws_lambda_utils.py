@@ -48,9 +48,31 @@ class CopyS3Lambda(AWSLambda):
 
 class MapS3ToFirehoseLambda(AWSLambda):
     def __init__(self, **kwargs):
-        from pprint import pprint
-        pprint(kwargs)
-        pass
+        self.kwargs = kwargs
+
+    def __rshift__(self, node_or_nodes):
+        # TODO: We don't really need rshift to create this Lambda. This could be done in the constructor itself.
+        children = util.listify(node_or_nodes)
+        handler_func = self.make_handler_func(self.kwargs)
+        lambda_leaf = AWSLambda(self.__class__.__name__,
+                                handler=handler_func,
+                                region_name=self.kwargs['region_name'],
+                                alias=self.kwargs['alias'],
+                                dependencies=[jaya])
+        return Composite(lambda_leaf, children)
+
+    @staticmethod
+    def make_handler_func(kwargs):
+        def handler(event, context):
+            from jaya.lib import util
+            from jaya.config import config
+            from jaya.etl import etl
+            environment = util.get_arn_environment(context.invoked_function_arn)
+            bucket_key_pairs = util.get_bucket_key_pairs_from_event(event)
+            conf = config.get_aws_config(environment)
+            etl.do_etl(conf, environment, bucket_key_pairs, kwargs['open_function'], kwargs['map_function'])
+
+        return handler
 
 
 def make_handler_func(dest_funcs):

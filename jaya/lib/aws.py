@@ -67,6 +67,17 @@ def create_s3_bucket(conf, bucket_name, region_name):
     s3.create_bucket(Bucket=bucket_name)
 
 
+def s3_delete_object(conf, bucket, key):
+    s3 = resource(conf, 's3')
+    s3.Bucket(bucket).delete_objects(Delete={
+        'Objects': [
+            {
+                'Key': key,
+            },
+        ],
+    })
+
+
 def s3_delete_objects(config, bucket):
     s3 = resource(config, 's3')
     return s3.Bucket(bucket).objects.delete()
