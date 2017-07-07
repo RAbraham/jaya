@@ -91,6 +91,11 @@ def notification(lambda_name, triggers):
     return {"lambda_name": lambda_name, 'triggers': triggers}
 
 
+def deploy_pipeline(aws_conf, environment, pipeline):
+    info = create_deploy_stack_info(pipeline)
+    deploy.deploy_stack_info(aws_conf, environment, info)
+
+
 def deploy_stack_info(conf, environment, info):
     s3_buckets = info[S3]
     for bucket, bucket_info in s3_buckets.items():

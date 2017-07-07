@@ -24,55 +24,98 @@ class DmpTestCase(unittest.TestCase):
         self.conf = config.get_aws_config('development')
 
     def test_dmp(self):
-        region = 'us-east-1'
         environment = 'staging'
-        dmp_source_s3 = S3('tsa-rajiv-dmp-source', region, on=[S3.ALL_CREATED_OBJECTS])
-        in_process_s3 = S3('tsa-rajiv-dmp-in-process', region, on=[S3.ALL_CREATED_OBJECTS])
         section_name = 'sports-staging'
-        conf = config.get_db_conf(section_name)
+        db_conf = config.get_db_conf(section_name)
         aws_conf = config.get_aws_config(environment)
-        mapper = MapS3ToFirehoseLambda(open_function=gzip.open,
-                                       map_function=dmp_mapper,
-                                       batch_size=499,
-                                       memory=1536,
-                                       timeout=300,
-                                       region_name='us-east-1',
-                                       alias='staging')
+        region = aws_conf['aws_default_region']
+        source_bucket = 'tsa-rajiv-dmp-source'
+        in_process_bucket = 'tsa-rajiv-dmp-in-process'
+        firehose_name = 'dmp_firehose'
+        table = 'dmp_table'
+        holding_bucket = 'thescore-firehose'
+        schema = 'public'
 
-        dmp_firehose = Firehose('dmp_firehose',
-                                conf['db-name'],
-                                conf['db-user'],
-                                conf['db-passwd'],
-                                conf['db-server'],
-                                'dmp_table',
-                                'thescore-firehose',
-                                aws_conf['firehose_role'],
-                                prefix='rajiv/test_jaya',
-                                buffering_interval_seconds=60
-                                )
+        firehose_s3_prefix = 'rajiv/test_jaya'
+        ingestion_pipeline = thescore_ingestion_pipeline(environment,
+                                                         aws_conf,
+                                                         db_conf,
+                                                         region,
+                                                         source_bucket,
+                                                         in_process_bucket,
+                                                         dmp_mapper,
+                                                         firehose_name,
+                                                         holding_bucket,
+                                                         firehose_s3_prefix,
+                                                         schema,
+                                                         table)
 
-        dmp_table = Table(
-            conf,
-            'dmp_table',
-            sa.Column('name', sa.String),
-            sa.Column('age', sa.String),
-            schema='public',
-            redshift_diststyle='KEY',
-            redshift_distkey='name',
+        # ingestion_pipeline = thescore_ingestion_pipeline(environment,
+        #                                                  aws_conf,
+        #                                                  db_conf,
+        #                                                  region,
+        #                                                  'bing_source_bucket',
+        #                                                  'bing_in_process_bucket',
+        #                                                  bing_complex_function,
+        #                                                  'bing_firehose',
+        #                                                  holding_bucket,
+        #                                                  'bing/loves/tennis',
+        #                                                  schema,
+        #                                                  'bing_table')
+        deploy.deploy_pipeline(aws_conf, environment, ingestion_pipeline)
 
-        )
 
-        p = dmp_source_s3 \
-            >> CopyS3Lambda({}, region, environment) \
-            >> in_process_s3 \
-            >> mapper \
-            >> dmp_firehose \
-            >> dmp_table
+def thescore_ingestion_pipeline(environment,
+                                aws_conf,
+                                db_conf,
+                                region,
+                                source_bucket,
+                                in_process_bucket,
+                                mapping_function,
+                                firehose_name,
+                                holding_bucket,
+                                firehose_s3_prefix,
+                                schema,
+                                table):
+    dmp_source_s3 = S3(source_bucket, region, on=[S3.ALL_CREATED_OBJECTS])
+    in_process_s3 = S3(in_process_bucket, region, on=[S3.ALL_CREATED_OBJECTS])
+    mapper = MapS3ToFirehoseLambda(open_function=gzip.open,
+                                   map_function=mapping_function,
+                                   batch_size=499,
+                                   memory=1536,
+                                   timeout=300,
+                                   region_name=region,
+                                   alias=environment)
 
-        piper = Pipeline('dmp-trial', [p])
+    dmp_firehose = Firehose(firehose_name,
+                            db_conf['db-name'],
+                            db_conf['db-user'],
+                            db_conf['db-passwd'],
+                            db_conf['db-server'],
+                            table,
+                            holding_bucket,
+                            aws_conf['firehose_role'],
+                            prefix=firehose_s3_prefix,
+                            buffering_interval_seconds=60
+                            )
+    dmp_table = Table(
+        db_conf,
+        table,
+        sa.Column('name', sa.String),
+        sa.Column('age', sa.String),
+        schema=schema,
+        redshift_diststyle='KEY',
+        redshift_distkey='name',
 
-        info = deploy.create_deploy_stack_info(piper)
-        deploy.deploy_stack_info(aws_conf, environment, info)
+    )
+    p = dmp_source_s3 \
+        >> CopyS3Lambda({}, region, environment) \
+        >> in_process_s3 \
+        >> mapper \
+        >> dmp_firehose \
+        >> dmp_table
+    piper = Pipeline('dmp-trial', [p])
+    return piper
 
 
 # TODO: Test empty tree
