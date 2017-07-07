@@ -147,7 +147,7 @@ def create_lambda(config, name, zfile, role, handler_name, description, lsize=51
         if name in [f['FunctionName'] for f in funcs]:
             if update:
                 print('Updating %s lambda function code' % (name))
-                return l.update_function_code(FunctionName=name, ZipFile=zipfile.read())
+                return l.update_function_code(FunctionName=name, S3Bucket=bucket, S3Key=key)
             else:
                 print('Lambda function %s exists' % (name))
                 for f in funcs:

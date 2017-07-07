@@ -1,6 +1,6 @@
 from jaya.pipeline.pipe import Leaf
 from . import aws
-
+import os
 import sqlalchemy as sa
 
 PYTHON36 = 'python3.6'
@@ -49,7 +49,6 @@ class Firehose(Leaf):
     def __init__(self, firehose_name, database_name, user_name, user_password, server_address, table_name,
                  holding_bucket, role_name, copy_options=DEFAULT_COPY_OPTIONS, prefix=None, buffering_size_mb=128,
                  buffering_interval_seconds=900, log_group=None, log_stream='RedshiftDelivery'):
-
         self.service = Service(aws.FIREHOSE)
         self.firehose_name = firehose_name
         self.database_name = database_name
@@ -67,32 +66,6 @@ class Firehose(Leaf):
         self.log_stream = log_stream
         pass
 
-
-# Table(
-#             database_config,
-#             schema,
-#             table,
-#             sa.Column('name', sa.String),
-#             sa.Column('age', sa.String),
-#             redshift_diststyle='KEY',
-#             redshift_distkey = 'name',
-#
-#         )
-
-# >>> import sqlalchemy as sa
-# >>> from sqlalchemy.schema import CreateTable
-# >>> engine = sa.create_engine('redshift+psycopg2://example')
-# >>> metadata = sa.MetaData()
-# >>> user = sa.Table(
-# ...     'user',
-# ...     metadata,
-# ...     sa.Column('id', sa.Integer, primary_key=True),
-# ...     sa.Column('name', sa.String),
-# ...     redshift_diststyle='KEY',
-# ...     redshift_distkey='id',
-# ...     redshift_interleaved_sortkey=['id', 'name'],
-# ... )
-# >>> print(CreateTable(user).compile(engine))
 
 class Table(Leaf):
     def __init__(self, database_config, table_name, *columns, **keys):
@@ -136,10 +109,14 @@ class Pipeline(object):
         self.pipes = pipes
 
 
-def module_path(file_or_dir_module):
-    if '__path__' in file_or_dir_module.__dict__:
-        return file_or_dir_module.__path__[0]
-    elif '__file__' in file_or_dir_module.__dict__:
-        return file_or_dir_module.__file__
-    else:
-        raise ValueError('Is {} a module at all??'.format(str(file_or_dir_module)))
+def module_path(file_or_dir_module_or_file_path):
+    try:
+        if os.path.isfile(file_or_dir_module_or_file_path):
+            return file_or_dir_module_or_file_path
+    except:
+        if '__path__' in file_or_dir_module_or_file_path.__dict__:
+            return file_or_dir_module_or_file_path.__path__[0]
+        elif '__file__' in file_or_dir_module_or_file_path.__dict__:
+            return file_or_dir_module_or_file_path.__file__
+        else:
+            raise ValueError('Is {} a module at all??'.format(str(file_or_dir_module_or_file_path)))

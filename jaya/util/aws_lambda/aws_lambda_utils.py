@@ -49,6 +49,10 @@ class CopyS3Lambda(AWSLambda):
 class MapS3ToFirehoseLambda(AWSLambda):
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.dependencies = [jaya, self.kwargs['map_function'].__globals__['__file__']]
+        handler_func = self.make_handler_func(self.kwargs)
+        super(MapS3ToFirehoseLambda, self).__init__('MapS3ToFirehoseLambda', handler_func, kwargs['region_name'],
+                                                    alias=kwargs['alias'], dependencies=self.dependencies)
 
     def __rshift__(self, node_or_nodes):
         # TODO: We don't really need rshift to create this Lambda. This could be done in the constructor itself.
@@ -58,7 +62,7 @@ class MapS3ToFirehoseLambda(AWSLambda):
                                 handler=handler_func,
                                 region_name=self.kwargs['region_name'],
                                 alias=self.kwargs['alias'],
-                                dependencies=[jaya])
+                                dependencies=self.dependencies)
         return Composite(lambda_leaf, children)
 
     @staticmethod
@@ -100,16 +104,6 @@ def copy_to_buckets(conf, bucket_key_pairs, dest_func):
 class CreateFileLambda(Leaf):
     def __init__(self):
         super(CreateFileLambda, self).__init__('Test CreateFileLambda Leaf Value Rajiv ')
-
-    # def __rshift__(self, node_or_nodes):
-    #     children = util.listify(node_or_nodes)
-    #     child = children[0]
-    #     handler_func = self.make_handler_func(child)
-    #     lambda_leaf = AWSLambda('CreateFileLambda',
-    #                             handler=handler_func)
-    #
-    #     # TODO: This could be delegated to a Leaf Class?
-    #     return Composite(lambda_leaf, children)
 
     @staticmethod
     def make_handler_func(s3_node):

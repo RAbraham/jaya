@@ -81,6 +81,10 @@ def process_composite_node(aggregator, visited_node):
         aggregator[S3][bucket_name] = {REGION_NAME: node_value.region_name}
     elif node_value.service.name == aws.LAMBDA:
         aggregator[LAMBDA][node_value.name][LAMBDA_INSTANCE] = node_value
+    elif node_value.service.name == aws.TABLE:
+        aggregator[TABLE][node_value.table_name] = node_value
+    elif node_value.service.name == aws.FIREHOSE:
+        aggregator[FIREHOSE][node_value.firehose_name] = node_value
 
 
 def notification(lambda_name, triggers):

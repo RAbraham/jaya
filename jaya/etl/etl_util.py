@@ -1,9 +1,6 @@
-import glob
 import json
-import util
-import os
 import time
-import aws
+from jaya.lib import util
 import botocore
 
 TRACKER_FIREHOSE_PREFIX = '_sports_'
@@ -12,6 +9,7 @@ INBOUND = 'inbound'
 IN_PROCESS = 'in-process'
 DONE = 'done'
 CHUNK_SPLITS = 6
+
 
 def error_line(line, source, line_error, now_func, raw_event=None):
     if not raw_event:
@@ -57,20 +55,25 @@ def send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_na
         response = firehose_client.put_record_batch(DeliveryStreamName=firehose_name, Records=chunk)
     except botocore.exceptions.ClientError:
         if len(chunk) >= 2 and retry < CHUNK_SPLITS:
-            half_way = len(chunk)/2
-            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal, chunk[:half_way], retry+1)
-            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal, chunk[half_way:], retry+1)
+            half_way = len(chunk) / 2
+            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal,
+                                   chunk[:half_way], retry + 1)
+            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal,
+                                   chunk[half_way:], retry + 1)
             return
         raise
     except botocore.vendored.requests.exceptions.ConnectionError:
         time.sleep(retry + 1)
         if retry == 2 and len(chunk) >= 2:
-            half_way = len(chunk)/2
-            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal, chunk[:half_way], retry+1)
-            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal, chunk[half_way:], retry+1)
+            half_way = len(chunk) / 2
+            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal,
+                                   chunk[:half_way], retry + 1)
+            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal,
+                                   chunk[half_way:], retry + 1)
             return
         else:
-            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal, chunk, retry+1)
+            send_chunk_to_firehose(firehose_client, firehose_responses_name, firehose_name, total_records, ordinal,
+                                   chunk, retry + 1)
             return
 
     log_firehose_response_record(firehose_client, firehose_responses_name, chunk, firehose_name, total_records,
