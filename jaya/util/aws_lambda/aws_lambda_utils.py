@@ -30,7 +30,6 @@ class CopyS3Lambda(AWSLambda):
         super(CopyS3Lambda, self).__init__('CopyS3Lambda', None, region_name, alias=alias, dependencies=[jaya])
 
     def __rshift__(self, node_or_nodes):
-        print('In CopyS3Lambda Rshift')
         children = util.listify(node_or_nodes)
         dest_funcs = [self.make_dest_func(child) for child in children]
         handler_func = make_handler_func(dest_funcs)
@@ -53,17 +52,6 @@ class MapS3ToFirehoseLambda(AWSLambda):
         handler_func = self.make_handler_func(self.kwargs)
         super(MapS3ToFirehoseLambda, self).__init__('MapS3ToFirehoseLambda', handler_func, kwargs['region_name'],
                                                     alias=kwargs['alias'], dependencies=self.dependencies)
-
-    def __rshift__(self, node_or_nodes):
-        # TODO: We don't really need rshift to create this Lambda. This could be done in the constructor itself.
-        children = util.listify(node_or_nodes)
-        handler_func = self.make_handler_func(self.kwargs)
-        lambda_leaf = AWSLambda(self.__class__.__name__,
-                                handler=handler_func,
-                                region_name=self.kwargs['region_name'],
-                                alias=self.kwargs['alias'],
-                                dependencies=self.dependencies)
-        return Composite(lambda_leaf, children)
 
     @staticmethod
     def make_handler_func(kwargs):
