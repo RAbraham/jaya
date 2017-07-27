@@ -6,6 +6,7 @@ from pprint import pprint
 from localstack.utils.aws import aws_stack
 from localstack.mock import infra
 from jaya.deployment import deploy_lambda
+import os
 
 MOCK_CREDENTIALS = {'aws_id': 'rajiv_id', 'aws_key': 'rajiv_key'}
 
@@ -93,7 +94,7 @@ def notification(lambda_name, triggers):
 
 def deploy_pipeline(aws_conf, environment, pipeline):
     info = create_deploy_stack_info(pipeline)
-    deploy.deploy_stack_info(aws_conf, environment, info)
+    deploy_stack_info(aws_conf, environment, info)
 
 
 def deploy_stack_info(conf, environment, info):
@@ -138,37 +139,59 @@ def deploy_stack_info(conf, environment, info):
                                        f.log_stream
                                        )
 
-# def deploy_stack_info_local(info):
-#     s3_buckets = info[S3]
-#     for bucket, bucket_info in s3_buckets.items():
-#         aws_lib.create_s3_bucket(MOCK_CREDENTIALS, bucket, bucket_info[REGION_NAME])
-#
-#     lambdas = info[LAMBDA]
-#     for lambda_name, lambda_info in lambdas.items():
-#         lambda_instance = lambda_info[LAMBDA_INSTANCE]
-#         deploy_lambda.deploy_lambda_package_local(lambda_info[LAMBDA_INSTANCE])
-#         aws_lib.add_s3_notification_for_lambda(conf,
-#                                                lambda_info[S3_SOURCE_BUCKET_NAME],
-#                                                lambda_name,
-#                                                environment,
-#                                                prefix=lambda_info.get('prefix', None),
-#                                                region_name=lambda_instance.region_name)
+
+def create_app_file(zappa_service, file_path):
+
+    for f in zappa_service.route_handler_pairs:
+
+    pass
 
 
-# def deploy_stack_info_localstack(conf, environment, info):
-#     s3_buckets = info[S3]
-#     s3_resource = aws_stack.connect_to_resource('s3')
-#     for bucket, bucket_info in s3_buckets.items():
-#         s3_resource.create_bucket(Bucket=bucket)
-#
-#     lambdas = info[LAMBDA]
-#     for lambda_name, lambda_info in lambdas.items():
-#         lambda_instance = lambda_info[LAMBDA_INSTANCE]
-#         deploy_lambda.deploy_lambda_package_new(environment, lambda_info[LAMBDA_INSTANCE], mock=True)
-#         aws_lib.add_s3_notification_for_lambda(conf,
-#                                                lambda_info[S3_SOURCE_BUCKET_NAME],
-#                                                lambda_name,
-#                                                environment,
-#                                                prefix=lambda_info.get('prefix', None),
-#                                                region_name=lambda_instance.region_name,
-#                                                mock=True)
+def deploy_zappa(zappa_service, environment, virtual_environment_path, code_staging_directory='/tmp'):
+    # make temp directory in tmp with application name
+    temp_directory = os.path.join(code_staging_directory, zappa_service.application_name)
+    if not os.path.exists(temp_directory):
+        os.makedirs(temp_directory)
+    # create_app_file
+    create_app_file(zappa_service,
+                    os.path.join(temp_directory, zappa_service.application_name.replace(" ", "_") + '.py'))
+    # create_zappa_config_file
+    # Use python subprocess module and
+    ## Activate virtualenv
+    ## Deploy Zappa
+    pass
+
+    # def deploy_stack_info_local(info):
+    #     s3_buckets = info[S3]
+    #     for bucket, bucket_info in s3_buckets.items():
+    #         aws_lib.create_s3_bucket(MOCK_CREDENTIALS, bucket, bucket_info[REGION_NAME])
+    #
+    #     lambdas = info[LAMBDA]
+    #     for lambda_name, lambda_info in lambdas.items():
+    #         lambda_instance = lambda_info[LAMBDA_INSTANCE]
+    #         deploy_lambda.deploy_lambda_package_local(lambda_info[LAMBDA_INSTANCE])
+    #         aws_lib.add_s3_notification_for_lambda(conf,
+    #                                                lambda_info[S3_SOURCE_BUCKET_NAME],
+    #                                                lambda_name,
+    #                                                environment,
+    #                                                prefix=lambda_info.get('prefix', None),
+    #                                                region_name=lambda_instance.region_name)
+
+
+    # def deploy_stack_info_localstack(conf, environment, info):
+    #     s3_buckets = info[S3]
+    #     s3_resource = aws_stack.connect_to_resource('s3')
+    #     for bucket, bucket_info in s3_buckets.items():
+    #         s3_resource.create_bucket(Bucket=bucket)
+    #
+    #     lambdas = info[LAMBDA]
+    #     for lambda_name, lambda_info in lambdas.items():
+    #         lambda_instance = lambda_info[LAMBDA_INSTANCE]
+    #         deploy_lambda.deploy_lambda_package_new(environment, lambda_info[LAMBDA_INSTANCE], mock=True)
+    #         aws_lib.add_s3_notification_for_lambda(conf,
+    #                                                lambda_info[S3_SOURCE_BUCKET_NAME],
+    #                                                lambda_name,
+    #                                                environment,
+    #                                                prefix=lambda_info.get('prefix', None),
+    #                                                region_name=lambda_instance.region_name,
+    #                                                mock=True)

@@ -1,7 +1,7 @@
 from jaya.pipeline.pipe import Leaf, Composite
 
 # TODO: Extract Jaya out of Aadith
-from jaya.core import AWSLambda, module_path
+from jaya.core import AWSLambda, Service
 
 from _functools import partial
 
@@ -9,6 +9,7 @@ from jaya.lib import util
 from jaya.config import config
 
 import jaya
+from jaya.core import aws
 
 
 class EchoLambda(AWSLambda):
@@ -65,6 +66,15 @@ class MapS3ToFirehoseLambda(AWSLambda):
             etl.do_etl(conf, environment, bucket_key_pairs, kwargs['open_function'], kwargs['map_function'])
 
         return handler
+
+
+class Zappa(Leaf):
+    def __init__(self, application_name, route_handler_pairs):
+        self.application_name = application_name
+        self.route_handler_pairs = route_handler_pairs
+        self.service = Service(aws.ZAPPA)
+        super(Zappa, self).__init__([self.application_name, self.route_handler_pairs])
+        pass
 
 
 def make_handler_func(dest_funcs):

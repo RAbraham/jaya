@@ -50,18 +50,6 @@ class DmpTestCase(unittest.TestCase):
                                                          schema,
                                                          table)
 
-        # ingestion_pipeline = thescore_ingestion_pipeline(environment,
-        #                                                  aws_conf,
-        #                                                  db_conf,
-        #                                                  region,
-        #                                                  'bing_source_bucket',
-        #                                                  'bing_in_process_bucket',
-        #                                                  bing_complex_function,
-        #                                                  'bing_firehose',
-        #                                                  holding_bucket,
-        #                                                  'bing/loves/tennis',
-        #                                                  schema,
-        #                                                  'bing_table')
         deploy.deploy_pipeline(aws_conf, environment, ingestion_pipeline)
 
 

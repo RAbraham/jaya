@@ -44,6 +44,8 @@ class AWSLambda(Leaf):
         super(AWSLambda, self).__init__([self.name, self.handler, self.dependency_paths])
 
 
+
+
 class Firehose(Leaf):
     # TODO: There are more parameters like Compression: Gzip etc. that we must consider.ƒ
     def __init__(self, firehose_name, database_name, user_name, user_password, server_address, table_name,
