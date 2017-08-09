@@ -97,7 +97,7 @@ Here is another pipeline all the way from an S3 bucket to the Redshift database
 
 ```python
 from jaya.core import S3, Pipeline, Firehose, Table
-from jaya.util.aws_lambda.aws_lambda_utils import MapS3ToFirehoseLambda, CopyS3Lambda
+from jaya.util.aws_lambda.aws_lambda_utils import MapS3ToFirehoseLambda
 import gzip
 import sqlalchemy as sa
 from jaya.deployment import deploy
@@ -114,9 +114,7 @@ def a_mapper(line, bucket, key):
 environment = 'staging'
 region = 'us-east-1'
 source_bucket = 'my-source-bucket'
-in_process_bucket = 'my-in-process-bucket'
 source_s3 = S3(source_bucket, region, on=[S3.ALL_CREATED_OBJECTS])
-in_process_s3 = S3(in_process_bucket, region, on=[S3.ALL_CREATED_OBJECTS])
 firehose_name = 'my-firehose'
 
 db_conf = {'db-name': 'my-db-name',
@@ -159,9 +157,7 @@ a_table = Table(
     redshift_distkey='name',
 
 )
-p = source_s3 \
-    >> CopyS3Lambda({}, region, environment) \
-    >> in_process_s3 \
+p = source_s3 \    
     >> mapper \
     >> a_firehose \
     >> a_table
