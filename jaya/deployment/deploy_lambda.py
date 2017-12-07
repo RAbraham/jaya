@@ -49,7 +49,6 @@ def make_zipfile(output_filename, source_dirs_or_files):
                             zip.write(filename, arcname)
             else:
                 filename = source_dir_or_file.split('/')[-1]
-                print('File:' + filename)
                 zip.write(source_dir_or_file, filename)
 
 

@@ -10,6 +10,7 @@ from sajan.pipeline.pipe import Leaf, Composite, Tree
 from . import deploy_lambda
 import os
 import copy
+from functools import partial
 
 MOCK_CREDENTIALS = {'aws_id': 'rajiv_id', 'aws_key': 'rajiv_key'}
 HANDLER = 'lambda.handler'
@@ -28,15 +29,17 @@ TRIGGERS = 'triggers'
 FIREHOSE = 'firehose'
 
 
-def deploy_info(a_pipeline: Pipeline, test_mode: bool = False):
+def deploy_info(a_pipeline: Pipeline, test_mode: bool = False, qualify_lambda_name: bool = True):
     # TODO: If the same service appears twice in the pipeline
     assert len(a_pipeline.pipes) == 1, 'We support only single node roots for now'
-    pipe = a_pipeline.pipes[0]
 
+    lambda_name_func = partial(lambda_name, qualify_lambda_name=qualify_lambda_name)
     copy_func = copy.copy if test_mode else copy.deepcopy
 
+    pipe = a_pipeline.pipes[0]
+
     aggregator = init_aggregator()
-    process_pipeline(aggregator, a_pipeline, pipe, copy_func)
+    process_pipeline(aggregator, a_pipeline, pipe, copy_func, lambda_name_func)
 
     return aggregator
 
@@ -51,15 +54,15 @@ def init_aggregator():
     return aggregator
 
 
-def process_pipeline(aggregator, a_pipeline: Pipeline, pipe: Tree, copy_func):
+def process_pipeline(aggregator, a_pipeline: Pipeline, pipe: Tree, copy_func, lambda_name_func):
     starting_node = pipe
     visited_node = starting_node
     if isinstance(visited_node, Leaf):
-        process_leaf(aggregator, a_pipeline, visited_node, copy_func)
+        process_leaf(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func)
     elif isinstance(visited_node, Composite):
-        process_composite_node(aggregator, a_pipeline, visited_node, copy_func)
+        process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func)
         for child in visited_node.children():
-            process_pipeline(aggregator, a_pipeline, child, copy_func)
+            process_pipeline(aggregator, a_pipeline, child, copy_func, lambda_name_func)
 
 
 # def process_leaf(aggregator, a_pipeline, visited_node, copy_func):
@@ -73,20 +76,20 @@ def process_pipeline(aggregator, a_pipeline: Pipeline, pipe: Tree, copy_func):
 #     elif visited_node.service.name == aws.FIREHOSE:
 #         aggregator[FIREHOSE][visited_node.firehose_name] = visited_node
 
-def process_leaf(aggregator, a_pipeline, visited_node, copy_func):
+def process_leaf(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     if visited_node.service_name == aws.S3:
         bucket_name = visited_node.bucket
         aggregator[S3][bucket_name] = {REGION_NAME: visited_node.region_name}
     elif visited_node.service_name == aws.LAMBDA:
-        add_lambda(a_pipeline, aggregator, visited_node, copy_func)
+        add_lambda(a_pipeline, aggregator, visited_node, copy_func, lambda_name_func)
     elif visited_node.service_name == aws.TABLE:
         aggregator[TABLE][visited_node.table_name] = visited_node
     elif visited_node.service_name == aws.FIREHOSE:
         aggregator[FIREHOSE][visited_node.firehose_name] = visited_node
 
 
-def add_lambda(a_pipeline, aggregator, visited_node, copy_func):
-    name = lambda_name(a_pipeline.name, visited_node.name)
+def add_lambda(a_pipeline, aggregator, visited_node, copy_func, lambda_name_func):
+    name = lambda_name_func(a_pipeline.name, visited_node.name)
     assert_unique_lambda_names(aggregator, name, visited_node)
 
     copied_lambda = copy_lambda(name, visited_node, copy_func)
@@ -103,12 +106,15 @@ def assert_unique_lambda_names(aggregator, name, visited_node):
     lambda_instance = aggregator[LAMBDA].get(name, {}).get(LAMBDA_INSTANCE, {})
     if lambda_instance:
         if lambda_instance.name == name:
-            raise Exception('There are multiple lambdas in the pipeline named {}. '
-                            'Please change the names to be unique'.format(visited_node.name))
+            raise ValueError('There are multiple lambdas in the pipeline named {}. '
+                             'Please change the names to be unique'.format(visited_node.name))
 
 
-def lambda_name(pipeline_name: str, lambda_name: str) -> str:
-    return '_'.join([pipeline_name, lambda_name])
+def lambda_name(pipeline_name: str, lambda_name: str, qualify_lambda_name: bool) -> str:
+    if qualify_lambda_name:
+        return '_'.join([pipeline_name, lambda_name])
+    else:
+        return lambda_name
 
 
 # def process_composite_node(aggregator, a_pipeline, visited_node, copy_func):
@@ -138,8 +144,7 @@ def lambda_name(pipeline_name: str, lambda_name: str) -> str:
 #         aggregator[FIREHOSE][node_value.firehose_name] = node_value
 
 
-def process_composite_node(aggregator, a_pipeline, visited_node, copy_func):
-
+def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     node_value = visited_node.value()
     if node_value.service_name == aws.S3:
         bucket_name = node_value.bucket
@@ -152,13 +157,13 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func):
             else:
                 child_value = child.value()
             if child_value.service_name == aws.LAMBDA:
-                name = lambda_name(a_pipeline.name, child_value.name)
+                name = lambda_name_func(a_pipeline.name, child_value.name)
                 aggregator[LAMBDA][name][S3_SOURCE_BUCKET_NAME] = bucket_name
                 aggregator[S3_NOTIFICATION][bucket_name].append(notification(name, node_value.on))
 
         aggregator[S3][bucket_name] = {REGION_NAME: node_value.region_name}
     elif node_value.service_name == aws.LAMBDA:
-        add_lambda(a_pipeline, aggregator, node_value, copy_func)
+        add_lambda(a_pipeline, aggregator, node_value, copy_func, lambda_name_func)
     elif node_value.service_name == aws.TABLE:
         aggregator[TABLE][node_value.table_name] = node_value
     elif node_value.service_name == aws.FIREHOSE:
@@ -169,15 +174,15 @@ def notification(lambda_name, triggers):
     return {LAMBDA_NAME: lambda_name, TRIGGERS: triggers}
 
 
-def deploy_pipeline(aws_conf, pipeline):
-    info = deploy_info(pipeline)
+def deploy_pipeline(aws_conf, pipeline, qualify_lambda_name: bool = True):
+    info = deploy_info(pipeline, qualify_lambda_name, qualify_lambda_name=qualify_lambda_name)
     deploy_stack_info(aws_conf, info)
 
 
-def deploy_node(aws_conf, pipeline, a_lambda_name):
+def deploy_node(aws_conf, pipeline, a_lambda_name, qualify_lambda_name: bool = True):
     subset_pipeline = subset(pipeline, a_lambda_name)
     if subset_pipeline:
-        deploy_pipeline(aws_conf, subset_pipeline)
+        deploy_pipeline(aws_conf, subset_pipeline, qualify_lambda_name=qualify_lambda_name)
     else:
         print('No match found for ' +
               'Pipeline:' +
@@ -281,9 +286,6 @@ def deploy_stack_info(conf, info):
                                        f.log_stream
                                        )
 
-
-
-
         # def deploy_stack_info_local(info):
         #     s3_buckets = info[S3]
         #     for bucket, bucket_info in s3_buckets.items():
@@ -299,7 +301,6 @@ def deploy_stack_info(conf, info):
         #                                                environment,
         #                                                prefix=lambda_info.get('prefix', None),
         #                                                region_name=lambda_instance.region_name)
-
 
         # def deploy_stack_info_localstack(conf, environment, info):
         #     s3_buckets = info[S3]

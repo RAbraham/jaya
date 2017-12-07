@@ -28,7 +28,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'jaya=jaya.deployment.jaya_deploy:handle'
+            'jaya=jaya.cli.cli:main'
         ]
     },
     classifiers=[
