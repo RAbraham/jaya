@@ -25,11 +25,9 @@ class S3(Service):
         assert type(on) == list, 'on should be of type list'
 
         # TODO: If region_name is made optional, then it should be US Standard or whatever the default is?
-        # self.service = Service(aws.S3)
         self.bucket = bucket
         self.region_name = region_name
         self.on = on
-        # super(S3, self).__init__([bucket, region_name, on])
         super(S3, self).__init__(service_name=aws.S3,
                                  bucket=bucket,
                                  region_name=region_name,

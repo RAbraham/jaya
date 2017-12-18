@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open('README.md') as f:
     readme = f.read()
@@ -17,7 +17,9 @@ setup(
     author_email='rajiv.abraham@gmail.com',
     url='https://github.com/scoremedia/jaya-aws',
     license=license,
-    packages=['jaya'],
+    # packages=['jaya', 'jaya.cli', 'jaya.cli.deploy', 'jaya.config', 'jaya.core', 'jaya.deployment', 'jaya.lib'],
+    packages=find_packages(),
+    include_package_data=True,
     install_requires=[
         'dill',
         'boto3',

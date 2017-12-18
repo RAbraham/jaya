@@ -1,5 +1,5 @@
 import unittest
-from .test_handlers import echo_handler, copy_handler
+from .handlers import echo_handler, copy_handler
 from jaya import S3, AWSLambda, Pipeline
 from jaya.deployment import deploy
 import json

@@ -21,8 +21,8 @@ def get(config_file_path: str) -> Dict[str, str]:
     config_parser = ConfigParser()
     config_parser.read(config_file_path)
     sections = config_parser.sections()
-    if 'jayaaws' not in sections:
-        raise ValueError("Expected section jayaaws in configuration file:" + config_file_path)
+    if 'jaya' not in sections:
+        raise ValueError("Expected section jaya in configuration file:" + config_file_path)
     else:
-        conf_dict = dict(config_parser.items('jayaaws'))
+        conf_dict = dict(config_parser.items('jaya'))
         return conf_dict

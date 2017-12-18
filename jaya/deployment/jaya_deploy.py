@@ -2,9 +2,8 @@ import importlib.util
 from jaya import Pipeline
 from jaya import deploy_node, deploy_pipeline
 import os
-
 from jaya.config import config
-
+import sys
 
 def get_file_name(file_path):
     return os.path.basename(file_path).split('.')[0]
@@ -12,6 +11,7 @@ def get_file_name(file_path):
 
 
 def load_module(file_path):
+
     spec = importlib.util.spec_from_file_location(get_file_name(file_path), file_path)
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)
@@ -44,7 +44,7 @@ def deploy_file(config_file: str,
     assert len(the_pipelines) <= 1, "There can only be one pipeline with the name in the search space:" + pipeline_name
     if the_pipelines:
         the_pipeline = the_pipelines[0]
-
+        # print('Fake Deploying:' + the_pipeline.name)
         if lambda_name:
             print('Deploying Pipeline:' + the_pipeline.name + ',function:' + lambda_name)
             deploy_node(aws_conf, the_pipeline, lambda_name, qualify_lambda_name=qualify_lambda_name)
