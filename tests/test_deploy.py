@@ -1,6 +1,6 @@
 import unittest
 from .handlers import echo_handler, copy_handler
-from jaya import S3, AWSLambda, Pipeline
+from jaya import S3, AWSLambda, Pipeline, event
 from jaya.deployment import deploy
 import json
 # from localstack.mock import infra
@@ -14,7 +14,8 @@ BUCKET2 = 'tsa-lambda-dest-bucket'
 BUCKET3 = 'tsa-bucket3'
 ENVIRONMENT = 'development'
 
-A_S3 = S3(BUCKET1, DEFAULT_REGION, on=[S3.ALL_CREATED_OBJECTS])
+lambda_event = event(trigger=S3.ALL_CREATED_OBJECTS, downstream_service=AWSLambda)
+A_S3 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event])
 
 
 class DeployTestCase(unittest.TestCase):
@@ -43,7 +44,8 @@ class DeployTestCase(unittest.TestCase):
         lambda_name = 'Echo1'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
 
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[S3.ALL_CREATED_OBJECTS])
+        s1 = S3(BUCKET1, DEFAULT_REGION, on=[event(AWSLambda,
+                                                   S3.ALL_CREATED_OBJECTS)])
         l1 = AWSLambda(lambda_name,
                        echo_handler,
                        DEFAULT_REGION,
@@ -62,9 +64,7 @@ class DeployTestCase(unittest.TestCase):
         exp_agg = deploy.init_aggregator()
         exp_agg[deploy.S3] = {BUCKET1: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
-                                                          deploy.S3_SOURCE_BUCKET_NAME: BUCKET1}}
-        exp_agg[deploy.S3_NOTIFICATION] = {BUCKET1: [{deploy.LAMBDA_NAME: qualified_lambda_name,
-                                                      deploy.TRIGGERS: [S3.ALL_CREATED_OBJECTS]}]}
+                                                          deploy.S3_NOTIFICATION: {BUCKET1: []}}}
 
         self.assertEqual(info, exp_agg)
 
@@ -92,9 +92,11 @@ class DeployTestCase(unittest.TestCase):
         exp_agg[deploy.S3] = {BUCKET1: {deploy.REGION_NAME: DEFAULT_REGION},
                               BUCKET2: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
-                                                          deploy.S3_SOURCE_BUCKET_NAME: BUCKET1}}
-        exp_agg[deploy.S3_NOTIFICATION] = {BUCKET1: [{deploy.LAMBDA_NAME: qualified_lambda_name,
-                                                      deploy.TRIGGERS: [S3.ALL_CREATED_OBJECTS]}]}
+                                                          deploy.S3_NOTIFICATION: {
+                                                              BUCKET1: [{'downstream_service': AWSLambda,
+                                                                         'prefix': None,
+                                                                         'suffix': None,
+                                                                         'trigger': S3.ALL_CREATED_OBJECTS}]}}}
 
         info = deploy.deploy_info(piper, test_mode=True)
 
@@ -127,9 +129,11 @@ class DeployTestCase(unittest.TestCase):
         exp_agg[deploy.S3] = {BUCKET1: {deploy.REGION_NAME: DEFAULT_REGION},
                               BUCKET2: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
-                                                          deploy.S3_SOURCE_BUCKET_NAME: BUCKET1}}
-        exp_agg[deploy.S3_NOTIFICATION] = {BUCKET1: [{deploy.LAMBDA_NAME: qualified_lambda_name,
-                                                      deploy.TRIGGERS: [S3.ALL_CREATED_OBJECTS]}]}
+                                                          deploy.S3_NOTIFICATION: {
+                                                              BUCKET1: [{'downstream_service': AWSLambda,
+                                                                         'prefix': None,
+                                                                         'suffix': None,
+                                                                         'trigger': S3.ALL_CREATED_OBJECTS}]}}}
 
         info = deploy.deploy_info(piper, test_mode=True, qualify_lambda_name=dont_qualify_lambda_name)
         self.assertEqual(info, exp_agg)
@@ -142,7 +146,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'incorrect-pipe-with-multiple-lambdas-with-same-name'
 
         s1 = A_S3
-        s2 = S3(BUCKET2, DEFAULT_REGION)
+        s2 = S3(BUCKET2, DEFAULT_REGION, on=[event(AWSLambda, S3.ALL_CREATED_OBJECTS)])
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
                        DEFAULT_REGION,
@@ -161,8 +165,6 @@ class DeployTestCase(unittest.TestCase):
         # ValueError: There are multiple lambdas in the pipeline named CopyS3Lambda1. Please change the names to be unique
         with self.assertRaises(ValueError) as cx:
             deploy.deploy_info(piper, test_mode=True)
-
-        pass
 
     def test_subset_tree(self):
         echo_lambda = partial(AWSLambda,
@@ -194,71 +196,70 @@ class DeployTestCase(unittest.TestCase):
             tree = deploy.subset_tree(inp, None, lambda_name)
             self.assertEqual(tree, exp)
 
-        pass
-        # def test_multi_hop_node_localstack(self):
-        #     region = 'us-east-1'
-        #     environment = 'development'
-        #     conf = config.get_aws_config(environment)
-        #
-        #     p = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS]) \
-        #         >> CopyS3Lambda({}, region, environment) \
-        #         >> S3('tsa-rajiv-bucket2', 'us-east-1')
-        #
-        #     piper = Pipeline('three-node-pipe', [p])
-        #     info = deploy.create_deploy_stack_info(piper)
-        #
-        #     deploy.deploy_stack_info_localstack(conf, environment, info)
+    # def test_multi_hop_node_localstack(self):
+    #     region = 'us-east-1'
+    #     environment = 'development'
+    #     conf = config.get_aws_config(environment)
+    #
+    #     p = S3('tsa-rajiv-bucket1', region, on=[S3.ALL_CREATED_OBJECTS]) \
+    #         >> CopyS3Lambda({}, region, environment) \
+    #         >> S3('tsa-rajiv-bucket2', 'us-east-1')
+    #
+    #     piper = Pipeline('three-node-pipe', [p])
+    #     info = deploy.create_deploy_stack_info(piper)
+    #
+    #     deploy.deploy_stack_info_localstack(conf, environment, info)
 
-        # def test_multi_hop_node_moto(self):
-        #     region = 'us-east-1'
-        #     environment = 'development'
-        #     conf = config.get_aws_config(environment)
-        #
-        #     source = 'tsa-rajiv-bucket1'
-        #     destination = 'tsa-rajiv-bucket2'
-        #     p = S3(source, region, on=[S3.ALL_CREATED_OBJECTS]) \
-        #         >> CopyS3Lambda({}, region, environment) \
-        #         >> S3(destination, 'us-east-1')
-        #
-        #     piper = Pipeline('three-node-pipe', [p])
-        #
-        #     # with test(piper) as test_harness:
-        #     #     s3 = test_harness.s3()
-        #     #     a_key = 'a_key'
-        #     #     file_content = io.BytesIO(b'Hi Rajiv')
-        #     #     s3.Bucket(source).put_object(Key=a_key, Body=file_content)
-        #     #     obj = s3.Object(bucket_name=destination, key=a_key)
-        #     #     response = obj.get()
-        #     #     data = response['Body'].read()
-        #     #     self.assertEqual(data, file_content.getvalue())
-        #
-        #     with test(piper) as test_harness:
-        #         s3 = test_harness.s3()
-        #         a_key = 'a_key'
-        #         file_content = io.BytesIO(b'Hi Rajiv')
-        #         s3.Bucket(source).put_object(Key=a_key, Body=file_content)
-        #         obj = s3.Object(bucket_name=source, key=a_key)
-        #         response = obj.get()
-        #         data = response['Body'].read()
-        #         self.assertEqual(data, file_content.getvalue())
-        #
-        #         # info = deploy.create_deploy_stack_info(piper)
-        #         #
-        #         # deploy.deploy_stack_info_localstack(conf, environment, info)
-        #
-        #         # def test_localstack(self):
-        #         #     from localstack.utils.aws import aws_stack
-        #         #     s3 = aws_stack.connect_to_resource('s3')
-        #         #     bucket = 'test_bucket_lambda'
-        #         #     key = 'test_lambda.zip'
-        #         #     s3.create_bucket(Bucket=bucket)
-        #         #     file_content = io.BytesIO(b'Hi rajiv')
-        #         #     s3.Bucket(bucket).put_object(Key=key, Body=file_content)
-        #         #
-        #         #     obj = s3.Object(bucket_name=bucket, key=key)
-        #         #     response = obj.get()
-        #         #     data = response['Body'].read()
-        #         #     self.assertEqual(data, file_content.getvalue())
+    # def test_multi_hop_node_moto(self):
+    #     region = 'us-east-1'
+    #     environment = 'development'
+    #     conf = config.get_aws_config(environment)
+    #
+    #     source = 'tsa-rajiv-bucket1'
+    #     destination = 'tsa-rajiv-bucket2'
+    #     p = S3(source, region, on=[S3.ALL_CREATED_OBJECTS]) \
+    #         >> CopyS3Lambda({}, region, environment) \
+    #         >> S3(destination, 'us-east-1')
+    #
+    #     piper = Pipeline('three-node-pipe', [p])
+    #
+    #     # with test(piper) as test_harness:
+    #     #     s3 = test_harness.s3()
+    #     #     a_key = 'a_key'
+    #     #     file_content = io.BytesIO(b'Hi Rajiv')
+    #     #     s3.Bucket(source).put_object(Key=a_key, Body=file_content)
+    #     #     obj = s3.Object(bucket_name=destination, key=a_key)
+    #     #     response = obj.get()
+    #     #     data = response['Body'].read()
+    #     #     self.assertEqual(data, file_content.getvalue())
+    #
+    #     with test(piper) as test_harness:
+    #         s3 = test_harness.s3()
+    #         a_key = 'a_key'
+    #         file_content = io.BytesIO(b'Hi Rajiv')
+    #         s3.Bucket(source).put_object(Key=a_key, Body=file_content)
+    #         obj = s3.Object(bucket_name=source, key=a_key)
+    #         response = obj.get()
+    #         data = response['Body'].read()
+    #         self.assertEqual(data, file_content.getvalue())
+    #
+    #         # info = deploy.create_deploy_stack_info(piper)
+    #         #
+    #         # deploy.deploy_stack_info_localstack(conf, environment, info)
+    #
+    #         # def test_localstack(self):
+    #         #     from localstack.utils.aws import aws_stack
+    #         #     s3 = aws_stack.connect_to_resource('s3')
+    #         #     bucket = 'test_bucket_lambda'
+    #         #     key = 'test_lambda.zip'
+    #         #     s3.create_bucket(Bucket=bucket)
+    #         #     file_content = io.BytesIO(b'Hi rajiv')
+    #         #     s3.Bucket(bucket).put_object(Key=key, Body=file_content)
+    #         #
+    #         #     obj = s3.Object(bucket_name=bucket, key=key)
+    #         #     response = obj.get()
+    #         #     data = response['Body'].read()
+    #         #     self.assertEqual(data, file_content.getvalue())
 
 
 def lambda_repr(a_lambda):

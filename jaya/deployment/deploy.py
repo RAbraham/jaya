@@ -2,6 +2,7 @@
 from sajan import Pipeline
 from jaya.core import aws
 from collections import defaultdict
+from jaya.services import AWSLambda
 from jaya.lib import aws as aws_lib
 from sajan.pipeline.pipe import Leaf, Composite, Tree
 # from pprint import pprint
@@ -47,7 +48,7 @@ def deploy_info(a_pipeline: Pipeline, test_mode: bool = False, qualify_lambda_na
 def init_aggregator():
     aggregator = defaultdict(dict)
     aggregator[LAMBDA] = defaultdict(dict)
-    aggregator[S3_NOTIFICATION] = defaultdict(dict)
+    # aggregator[S3_NOTIFICATION] = defaultdict(dict)
     aggregator[S3] = defaultdict(dict)
     aggregator[TABLE] = defaultdict(dict)
     aggregator[FIREHOSE] = defaultdict(dict)
@@ -64,17 +65,6 @@ def process_pipeline(aggregator, a_pipeline: Pipeline, pipe: Tree, copy_func, la
         for child in visited_node.children():
             process_pipeline(aggregator, a_pipeline, child, copy_func, lambda_name_func)
 
-
-# def process_leaf(aggregator, a_pipeline, visited_node, copy_func):
-#     if visited_node.service.name == aws.S3:
-#         bucket_name = visited_node.bucket
-#         aggregator[S3][bucket_name] = {REGION_NAME: visited_node.region_name}
-#     elif visited_node.service.name == aws.LAMBDA:
-#         add_lambda(a_pipeline, aggregator, visited_node, copy_func)
-#     elif visited_node.service.name == aws.TABLE:
-#         aggregator[TABLE][visited_node.table_name] = visited_node
-#     elif visited_node.service.name == aws.FIREHOSE:
-#         aggregator[FIREHOSE][visited_node.firehose_name] = visited_node
 
 def process_leaf(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     if visited_node.service_name == aws.S3:
@@ -149,7 +139,7 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
     if node_value.service_name == aws.S3:
         bucket_name = node_value.bucket
         # TODO: What happens if there is a cycle in the graph, then the following initialization will reset the earlier configs for the same s3 bucket
-        aggregator[S3_NOTIFICATION][bucket_name] = []
+        # aggregator[S3_NOTIFICATION][bucket_name] = []
         children = visited_node.children()
         for child in children:
             if isinstance(child, Leaf):
@@ -158,8 +148,14 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
                 child_value = child.value()
             if child_value.service_name == aws.LAMBDA:
                 name = lambda_name_func(a_pipeline.name, child_value.name)
-                aggregator[LAMBDA][name][S3_SOURCE_BUCKET_NAME] = bucket_name
-                aggregator[S3_NOTIFICATION][bucket_name].append(notification(name, node_value.on))
+                if S3_NOTIFICATION not in aggregator[LAMBDA][name]:
+                    aggregator[LAMBDA][name][S3_NOTIFICATION] = {}
+                    # lambda_info[S3_SOURCE_BUCKET_NAME] = bucket_name
+                lambda_notif_info = aggregator[LAMBDA][name][S3_NOTIFICATION]
+                add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.on)
+                # lambda_notif_info[bucket_name] = lambda_notifications(lambda_notif_info, node_value.on)
+
+                # aggregator[S3_NOTIFICATION][bucket_name].append(lambda_notification(name, node_value.on))
 
         aggregator[S3][bucket_name] = {REGION_NAME: node_value.region_name}
     elif node_value.service_name == aws.LAMBDA:
@@ -170,12 +166,19 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
         aggregator[FIREHOSE][node_value.firehose_name] = node_value
 
 
-def notification(lambda_name, triggers):
-    return {LAMBDA_NAME: lambda_name, TRIGGERS: triggers}
+def add_to_lambda_notif_info(lambda_notif_info, bucket_name, notifications):
+    # TODO: Ensure that new_info is unique set as it is possible to put multiple notifications of the same values
+    old_info = lambda_notif_info.get(bucket_name, [])
+    new_info = old_info + lambda_notifications(notifications)
+    lambda_notif_info[bucket_name] = new_info
+
+
+def lambda_notifications(notifications):
+    return [n for n in notifications if n['downstream_service'] == AWSLambda]
 
 
 def deploy_pipeline(aws_conf, pipeline, qualify_lambda_name: bool = True):
-    info = deploy_info(pipeline, qualify_lambda_name, qualify_lambda_name=qualify_lambda_name)
+    info = deploy_info(pipeline, test_mode=False, qualify_lambda_name=qualify_lambda_name)
     deploy_stack_info(aws_conf, info)
 
 
@@ -212,15 +215,6 @@ def subset_tree(tree, upstream, a_lambda_name):
     pass
 
 
-# def node_subset(tree, upstream, a_lambda_name):
-#     if tree.service.name == aws.LAMBDA and tree.name == a_lambda_name:
-#         if upstream:
-#             return upstream >> tree
-#         else:
-#             return tree
-#     else:
-#         return None
-
 def node_subset(tree, upstream, a_lambda_name):
     if tree.service_name == aws.LAMBDA and tree.name == a_lambda_name:
         if upstream:
@@ -253,12 +247,16 @@ def deploy_stack_info(conf, info):
     for lambda_name, lambda_info in lambdas.items():
         lambda_instance = lambda_info[LAMBDA_INSTANCE]
         deploy_lambda.deploy_lambda_package_new_simple(conf, lambda_instance)
-        aws_lib.add_s3_notification_for_lambda(conf,
-                                               lambda_info[S3_SOURCE_BUCKET_NAME],
-                                               lambda_name,
-                                               lambda_instance.alias,
-                                               prefix=lambda_info.get('prefix', None),
-                                               region_name=lambda_instance.region_name)
+        for bucket_name, notification_infos in lambda_info[S3_NOTIFICATION].items():
+            for notification_info in notification_infos:
+                aws_lib.add_s3_notification_for_lambda(conf,
+                                                       bucket_name,
+                                                       lambda_name,
+                                                       notification_info['trigger'],
+                                                       lambda_instance.alias,
+                                                       prefix=notification_info.get('prefix', None),
+                                                       suffix=notification_info.get('suffix', None),
+                                                       region_name=lambda_instance.region_name)
 
     tables = info[TABLE]
     for table_name, table in tables.items():

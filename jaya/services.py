@@ -13,13 +13,21 @@ DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecol
 C = TypeVar('C')
 
 HANDLER_SIGNATURE = Callable[[List[Leaf], Dict, C], None]
-MYCONSTANT = 'Hi Rajiv'
+
+
+def event(trigger, prefix=None, suffix=None, downstream_service=None):
+    assert trigger is not None, 'Trigger is Mandatory'
+    return {'downstream_service': downstream_service,
+            'trigger': trigger,
+            'prefix': prefix,
+            'suffix': suffix
+            }
 
 
 class S3(Service):
     ALL_CREATED_OBJECTS = 's3:ObjectCreated:*'
 
-    def __init__(self, bucket, region_name, on=None):
+    def __init__(self, bucket, region_name, on: List[Dict[str, str]] = None):
         if not on:
             on = []
         assert type(on) == list, 'on should be of type list'

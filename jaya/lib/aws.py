@@ -378,7 +378,8 @@ def create_firehose_stream(conf,
 #     responses.append(notification_response)
 #     return responses
 
-def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=None, prefix=None, region_name=None):
+def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, trigger, qualifier=None, prefix=None, suffix=None,
+                                   region_name=None):
     assert conf is not None, 'Configuration Dict Required, wtf'
     assert bucket_name is not None, 'Bucket Name Mandatory, wtf'
     assert lambda_name is not None, 'Lambda Name Mandatory, wtf'
@@ -388,28 +389,46 @@ def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, qualifier=Non
     add_responses = lambda_add_s3_permission(conf, lambda_name, bucket_name, prefix, qualifier, region_name)
     responses.extend(add_responses)
 
-    notification_response = s3_add_lambda_notification(conf, bucket_name, prefix, qualifier, lambda_name, region_name)
+    notification_response = s3_add_lambda_notification(conf,
+                                                       bucket_name,
+                                                       qualifier,
+                                                       lambda_name,
+                                                       region_name,
+                                                       trigger,
+                                                       prefix,
+                                                       suffix)
 
     responses.append(notification_response)
     return responses
 
 
-def s3_add_lambda_notification(conf, bucket_name, prefix, qualifier, lambda_name, region_name):
+def s3_add_lambda_notification(conf,
+                               bucket_name,
+                               qualifier,
+                               lambda_name,
+                               region_name,
+                               trigger,
+                               prefix=None,
+                               suffix=None,
+                               ):
     notification_response = None
     add = util.merge_dicts
     s3 = resource(conf, 's3', region_name=region_name)
     bucket_notification = s3.BucketNotification(bucket_name)
     lambda_arn = get_lambda_info(conf, lambda_name, qualifier, region_name)[FUNCTION_ARN]
+
     lambda_configuration = {
         LAMBDA_ARN: lambda_arn,
         'Events': [
-            's3:ObjectCreated:*'
+            trigger
         ],
 
     }
     if prefix:
-        lambda_configuration = add(lambda_configuration, s3_filter({'prefix': prefix}))
-
+        lambda_configuration = add(lambda_configuration, s3_filter('prefix', prefix))
+    # TODO: Duplication code for prefix and suffix
+    if suffix:
+        lambda_configuration = add(lambda_configuration, s3_filter('suffix', suffix))
     existing_configurations = get_lambda_notifications(bucket_notification)
     new_configurations = make_s3_notifications_for_upsertion(existing_configurations, lambda_configuration)
 
