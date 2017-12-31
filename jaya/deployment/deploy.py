@@ -152,7 +152,7 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
                     aggregator[LAMBDA][name][S3_NOTIFICATION] = {}
                     # lambda_info[S3_SOURCE_BUCKET_NAME] = bucket_name
                 lambda_notif_info = aggregator[LAMBDA][name][S3_NOTIFICATION]
-                add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.on)
+                add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.on, child_value.name)
                 # lambda_notif_info[bucket_name] = lambda_notifications(lambda_notif_info, node_value.on)
 
                 # aggregator[S3_NOTIFICATION][bucket_name].append(lambda_notification(name, node_value.on))
@@ -166,15 +166,16 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
         aggregator[FIREHOSE][node_value.firehose_name] = node_value
 
 
-def add_to_lambda_notif_info(lambda_notif_info, bucket_name, notifications):
+def add_to_lambda_notif_info(lambda_notif_info, bucket_name, notifications, original_lambda_name):
     # TODO: Ensure that new_info is unique set as it is possible to put multiple notifications of the same values
     old_info = lambda_notif_info.get(bucket_name, [])
-    new_info = old_info + lambda_notifications(notifications)
+    new_info = old_info + lambda_notifications(notifications, original_lambda_name)
+
     lambda_notif_info[bucket_name] = new_info
 
 
-def lambda_notifications(notifications):
-    return [n for n in notifications if n['downstream_service'] == AWSLambda]
+def lambda_notifications(notifications, original_lambda_name):
+    return [n for n in notifications if n['service_name'] == original_lambda_name]
 
 
 def deploy_pipeline(aws_conf, pipeline, qualify_lambda_name: bool = True):

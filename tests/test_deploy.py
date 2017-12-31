@@ -14,8 +14,12 @@ BUCKET2 = 'tsa-lambda-dest-bucket'
 BUCKET3 = 'tsa-bucket3'
 ENVIRONMENT = 'development'
 
-lambda_event = event(trigger=S3.ALL_CREATED_OBJECTS, downstream_service=AWSLambda)
-A_S3 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event])
+
+# A_S3 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+
+
+def lambda_event(lambda_name):
+    return event(trigger=S3.ALL_CREATED_OBJECTS, service_name=lambda_name)
 
 
 class DeployTestCase(unittest.TestCase):
@@ -29,7 +33,7 @@ class DeployTestCase(unittest.TestCase):
         pass
 
     def test_single_s3_bucket(self):
-        p = A_S3
+        p = S3(BUCKET1, DEFAULT_REGION)
 
         piper = Pipeline('my-first', [p])
 
@@ -43,9 +47,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'two-node-pipe'
         lambda_name = 'Echo1'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
-
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[event(AWSLambda,
-                                                   S3.ALL_CREATED_OBJECTS)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, on=[event(S3.ALL_CREATED_OBJECTS, service_name=lambda_name)])
         l1 = AWSLambda(lambda_name,
                        echo_handler,
                        DEFAULT_REGION,
@@ -64,7 +66,9 @@ class DeployTestCase(unittest.TestCase):
         exp_agg = deploy.init_aggregator()
         exp_agg[deploy.S3] = {BUCKET1: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
-                                                          deploy.S3_NOTIFICATION: {BUCKET1: []}}}
+                                                          deploy.S3_NOTIFICATION: {
+                                                              BUCKET1: [event(S3.ALL_CREATED_OBJECTS,
+                                                                              service_name=lambda_name)]}}}
 
         self.assertEqual(info, exp_agg)
 
@@ -75,13 +79,13 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'three-node-pipe'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
 
-        s1 = A_S3
-        s2 = S3(BUCKET2, DEFAULT_REGION)
+        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
                        DEFAULT_REGION,
                        alias=ENVIRONMENT,
                        dependencies=[jaya])
+        s2 = S3(BUCKET2, DEFAULT_REGION)
 
         p = s1 >> l1 >> s2
         piper = Pipeline(pipeline_name, [p])
@@ -93,15 +97,10 @@ class DeployTestCase(unittest.TestCase):
                               BUCKET2: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
                                                           deploy.S3_NOTIFICATION: {
-                                                              BUCKET1: [{'downstream_service': AWSLambda,
-                                                                         'prefix': None,
-                                                                         'suffix': None,
-                                                                         'trigger': S3.ALL_CREATED_OBJECTS}]}}}
+                                                              BUCKET1: [event(S3.ALL_CREATED_OBJECTS,
+                                                                              service_name=lambda_name)]}}}
 
         info = deploy.deploy_info(piper, test_mode=True)
-
-        # p1 = pipeline_repr(info)
-        # p2 = pipeline_repr(exp_agg)
 
         self.assertEqual(info, exp_agg)
 
@@ -112,7 +111,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'three-node-pipe'
         dont_qualify_lambda_name = False
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, dont_qualify_lambda_name)
-        s1 = A_S3
+        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
@@ -130,10 +129,8 @@ class DeployTestCase(unittest.TestCase):
                               BUCKET2: {deploy.REGION_NAME: DEFAULT_REGION}}
         exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
                                                           deploy.S3_NOTIFICATION: {
-                                                              BUCKET1: [{'downstream_service': AWSLambda,
-                                                                         'prefix': None,
-                                                                         'suffix': None,
-                                                                         'trigger': S3.ALL_CREATED_OBJECTS}]}}}
+                                                              BUCKET1: [event(S3.ALL_CREATED_OBJECTS,
+                                                                              service_name=lambda_name)]}}}
 
         info = deploy.deploy_info(piper, test_mode=True, qualify_lambda_name=dont_qualify_lambda_name)
         self.assertEqual(info, exp_agg)
@@ -145,8 +142,8 @@ class DeployTestCase(unittest.TestCase):
         lambda_name = 'CopyS3Lambda1'
         pipeline_name = 'incorrect-pipe-with-multiple-lambdas-with-same-name'
 
-        s1 = A_S3
-        s2 = S3(BUCKET2, DEFAULT_REGION, on=[event(AWSLambda, S3.ALL_CREATED_OBJECTS)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+        s2 = S3(BUCKET2, DEFAULT_REGION, on=[lambda_event(lambda_name)])
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
                        DEFAULT_REGION,
@@ -174,7 +171,7 @@ class DeployTestCase(unittest.TestCase):
                               dependencies=[jaya])
 
         lambda_name = 'Echo1'
-        s1 = A_S3
+        s1 = S3(BUCKET2, DEFAULT_REGION, on=[lambda_event(lambda_name)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
 
         l1 = echo_lambda(name=lambda_name)

@@ -15,9 +15,10 @@ C = TypeVar('C')
 HANDLER_SIGNATURE = Callable[[List[Leaf], Dict, C], None]
 
 
-def event(trigger, prefix=None, suffix=None, downstream_service=None):
-    assert trigger is not None, 'Trigger is Mandatory'
-    return {'downstream_service': downstream_service,
+def event(trigger, prefix=None, suffix=None, service_name=None):
+    assert trigger is not None, 'Trigger is mandatory'
+    assert service_name is not None, "Named argument 'service_name' is mandatory"
+    return {'service_name': service_name,
             'trigger': trigger,
             'prefix': prefix,
             'suffix': suffix
@@ -154,6 +155,16 @@ class Table(Service):
         print(response)
 
     pass
+
+
+if __name__ == '__main__':
+    from pprint import pprint
+
+    kwargs = dict(region_name='us', bucket='b1', on=[event(S3.ALL_CREATED_OBJECTS)])
+    s1 = S3('b1', 'us', on=[event(S3.ALL_CREATED_OBJECTS, service_name='x')])
+
+    s2 = S3(**kwargs)
+    print(s2 == s1)
 
 # def raise_(cls_exception, str):
 #     raise cls_exception(str)
