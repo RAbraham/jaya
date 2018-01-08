@@ -1,10 +1,10 @@
 # from jaya.core import aws, Pipeline, AWSLambda
-from sajan import Pipeline
+from jaya.sajan import Pipeline
 from jaya.core import aws
 from collections import defaultdict
 from jaya.services import AWSLambda
 from jaya.lib import aws as aws_lib
-from sajan.pipeline.pipe import Leaf, Composite, Tree
+from jaya.sajan.pipeline.pipe import Leaf, Composite, Tree
 # from pprint import pprint
 # from localstack.utils.aws import aws_stack
 # from localstack.mock import infra
@@ -68,7 +68,7 @@ def process_pipeline(aggregator, a_pipeline: Pipeline, pipe: Tree, copy_func, la
 
 def process_leaf(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     if visited_node.service_name == aws.S3:
-        bucket_name = visited_node.bucket
+        bucket_name = visited_node.bucket_name
         aggregator[S3][bucket_name] = {REGION_NAME: visited_node.region_name}
     elif visited_node.service_name == aws.LAMBDA:
         add_lambda(a_pipeline, aggregator, visited_node, copy_func, lambda_name_func)
@@ -137,7 +137,7 @@ def lambda_name(pipeline_name: str, lambda_name: str, qualify_lambda_name: bool)
 def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     node_value = visited_node.value()
     if node_value.service_name == aws.S3:
-        bucket_name = node_value.bucket
+        bucket_name = node_value.bucket_name
         # TODO: What happens if there is a cycle in the graph, then the following initialization will reset the earlier configs for the same s3 bucket
         # aggregator[S3_NOTIFICATION][bucket_name] = []
         children = visited_node.children()
@@ -152,7 +152,7 @@ def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lamb
                     aggregator[LAMBDA][name][S3_NOTIFICATION] = {}
                     # lambda_info[S3_SOURCE_BUCKET_NAME] = bucket_name
                 lambda_notif_info = aggregator[LAMBDA][name][S3_NOTIFICATION]
-                add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.on, child_value.name)
+                add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.events, child_value.name)
                 # lambda_notif_info[bucket_name] = lambda_notifications(lambda_notif_info, node_value.on)
 
                 # aggregator[S3_NOTIFICATION][bucket_name].append(lambda_notification(name, node_value.on))

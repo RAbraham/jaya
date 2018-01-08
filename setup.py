@@ -17,7 +17,6 @@ setup(
     author_email='rajiv.abraham@gmail.com',
     url='https://github.com/scoremedia/jaya-aws',
     license=license,
-    # packages=['jaya', 'jaya.cli', 'jaya.cli.deploy', 'jaya.config', 'jaya.core', 'jaya.deployment', 'jaya.lib'],
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
@@ -25,8 +24,7 @@ setup(
         'boto3',
         'sqlalchemy',
         'sqlalchemy-redshift',
-        'click',
-        'sajan'
+        'click'
     ],
     entry_points={
         'console_scripts': [

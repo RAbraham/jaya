@@ -1,8 +1,7 @@
 import jaya
-import sajan
 
-from sajan import Leaf, Composite, Tree, Service
-from sajan import util as sajan_util
+from jaya.sajan import Leaf, Composite, Tree, Service, SajanContext
+from jaya.sajan import util as sajan_util
 from jaya.core import aws
 import sqlalchemy as sa
 from typing import Callable, List, Dict, TypeVar
@@ -12,41 +11,46 @@ PYTHON36 = 'python3.6'
 DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecolumns"
 C = TypeVar('C')
 
-HANDLER_SIGNATURE = Callable[[List[Leaf], Dict, C], None]
+
+# HANDLER_SIGNATURE = Callable[[List[Leaf], Dict, C], None]
 
 
-def event(trigger, prefix=None, suffix=None, service_name=None):
-    assert trigger is not None, 'Trigger is mandatory'
-    assert service_name is not None, "Named argument 'service_name' is mandatory"
-    return {'service_name': service_name,
-            'trigger': trigger,
-            'prefix': prefix,
-            'suffix': suffix
-            }
+def require(keyword_argument, name):
+    assert keyword_argument is not None, "Argument '{name}' is mandatory".format(name=name)
 
 
 class S3(Service):
     ALL_CREATED_OBJECTS = 's3:ObjectCreated:*'
 
-    def __init__(self, bucket, region_name, on: List[Dict[str, str]] = None):
-        if not on:
-            on = []
-        assert type(on) == list, 'on should be of type list'
+    def __init__(self, bucket_name, region_name, events: List[Dict[str, str]] = None):
+        if not events:
+            events = []
+        assert type(events) == list, 'events should be of type list'
 
         # TODO: If region_name is made optional, then it should be US Standard or whatever the default is?
-        self.bucket = bucket
+        self.bucket_name = bucket_name
         self.region_name = region_name
-        self.on = on
+        self.events = events
         super(S3, self).__init__(service_name=aws.S3,
-                                 bucket=bucket,
+                                 bucket_name=bucket_name,
                                  region_name=region_name,
-                                 on=on)
+                                 events=events)
+
+    @staticmethod
+    def event(trigger, prefix=None, suffix=None, service_name=None):
+        require(trigger, 'trigger')
+        require(service_name, 'service_name')
+        return {'service_name': service_name,
+                'trigger': trigger,
+                'prefix': prefix,
+                'suffix': suffix
+                }
 
 
 class AWSLambda(Service):
     def __init__(self,
                  name,
-                 handler_func: HANDLER_SIGNATURE,
+                 handler,
                  region_name,
                  memory=1536,
                  timeout=300,
@@ -58,12 +62,11 @@ class AWSLambda(Service):
                  role_name=None,
                  tracing_config=None):
         self.name = name
-        self.handler_func = handler_func
-        self.handler = partial(self.handler_func, [])
+        self.handler_func = handler
+        self.handler = partial(self.handler_func, SajanContext())
         self.region_name = region_name
         self.memory = memory
         self.timeout = timeout
-        # self.service = Service(aws.LAMBDA)
         self.alias = alias
         self.runtime = runtime
         self.description = description
@@ -71,7 +74,7 @@ class AWSLambda(Service):
         self.virtual_environment_path = virtual_environment_path
         if not dependencies:
             dependencies = []
-        dependencies.extend([sajan, jaya])
+        dependencies.extend([jaya.sajan, jaya])
 
         self.dependency_paths = [sajan_util.module_path(d) for d in dependencies]
         self.role_name = role_name
@@ -91,7 +94,7 @@ class AWSLambda(Service):
 
     def __rshift__(self, node_or_nodes):
         children = sajan_util.listify(node_or_nodes)
-        self.handler = partial(self.handler_func, children)
+        self.handler = partial(self.handler_func, SajanContext(children=children))
 
         return Composite(self, children)
 
@@ -151,20 +154,4 @@ class Table(Service):
 
     def deploy(self):
         response = self.metadata.create_all(self.metadata.bind)
-        print('Response')
-        print(response)
-
-    pass
-
-
-if __name__ == '__main__':
-    from pprint import pprint
-
-    kwargs = dict(region_name='us', bucket='b1', on=[event(S3.ALL_CREATED_OBJECTS)])
-    s1 = S3('b1', 'us', on=[event(S3.ALL_CREATED_OBJECTS, service_name='x')])
-
-    s2 = S3(**kwargs)
-    print(s2 == s1)
-
-# def raise_(cls_exception, str):
-#     raise cls_exception(str)
+        return response

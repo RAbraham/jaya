@@ -1,8 +1,188 @@
 # jaya
-[Proof of Concept] [Not Production Ready] Write, Maintain, Unit Test, Deploy AWS Data Pipelines in Python
+[Experimental] Create Data Pipelines using AWS Services in Python 
+
+Tested on 3.6+
+
+```bash
+# Let's make a client project
+mkdir jaya-client
+cd jaya-client
+# Only tested on Python 3.6+
+virtualenv -p python3 venv3
+source venv3/bin/activate
+pip install jaya
+```
+
+### Create a config file
+##### jayaclient/jayaclient/config/jaya.conf
+```bash
+[jaya]
+aws_access_key_id  = my_access_key_id
+aws_secret_access_key = my_secret
+```
+Fill `my_access_key_id` and `my_secret` with your own values
+
+## Example: Echo what file was created in a S3 bucket
+### Create a helper file. 
+##### jaya-client/jayaclient/pipelines/echo_helper.py
+```pythonstub
+def get_bucket_key_pairs_from_event(event):
+    return [(record['s3']['bucket']['name'],
+             record['s3']['object']['key'])
+            for record
+            in event['Records']]
 
 
-# Features
+# Note that in the echo case, 'jaya_context' and 'context' are not used.
+def echo_handler(jaya_context, event, context):
+    bucket, key = get_bucket_key_pairs_from_event(event)[0]
+    print('Echo Helper:File created:' + bucket + '/' + key)
+
+
+```
+### Create the Pipeline file
+##### jaya-client/jayaclient/pipelines/echo_pipeline.py
+```pythonstub
+from jaya import S3, Pipeline, AWSLambda
+# Note this import is for adding the AWSLambda dependencies
+import jayaclient
+from jayaclient.pipelines import echo_helper
+
+region = 'us-east-1'
+echo_lambda_name = 'EchoLambda'
+s1 = S3(bucket_name='tsa-my-source-bucket',
+        region_name=region,
+        events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name=echo_lambda_name)])
+
+lambda_config = dict(name=echo_lambda_name,
+                     handler=echo_helper.echo_handler,
+                     region_name=region,
+                     alias='development',
+                     virtual_environment_path='/Users/rabraham/Documents/dev/thescore/analytics/jaya-client/venv3/',
+                     role_name='lambda_s3_exec_role',  # Existing role which has to be created manually
+                     description="Echo Created File Name",
+                     dependencies=[jayaclient, echo_helper])
+
+echo_lambda = AWSLambda(**lambda_config)
+p = s1 >> echo_lambda
+piper = Pipeline('my-echo-pipeline', [p])
+
+
+```
+The code piece `p = s1 >> echo_lambda` says 
+
+* create `s1` if it does not exist, create or update `echo_lambda`
+* create a event notification such that if a file is created in `tsa-my-source-bucket`, it will invoke `EchoLambda`.   
+
+### Deploy the pipeline
+```bash
+
+jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.conf --file=./jayaclient/pipelines/echo_pipeline.py --pipeline=my-echo-pipeline
+```
+The above code will create the S3 buckets if they don't exist.
+If you go to your AWS Lambda Console, you'll see an entry titled `my-echo-pipeline_EchoLambda`. Check the alias `development` and you'll see the trigger for the S3 bucket. Likewise, if you go to the S3 Console for the bucket `tsa-my-source-bucket`, you'll see the event notification added for the lambda function and alias. 
+
+## Example: Copy Files from one S3 bucket to another
+Let's create another example, where when a file is created in one bucket, it gets copied to another bucket.
+
+### Create the helper file
+##### jaya-client/jayaclient/pipelines/copy_helper.py
+```pythonstub
+import boto3
+
+
+def resource(conf, resource_name, region_name='us-east-1'):
+    session = boto3.session.Session(aws_access_key_id=conf['aws_id'],
+                                    aws_secret_access_key=conf['aws_key'],
+                                    region_name=region_name)
+    return session.resource(resource_name)
+
+
+def copy_from_s3_to_s3(conf, source_bucket, source_key, destination_bucket, destination_key):
+    s3 = resource(conf, 's3')
+    o = s3.Object(destination_bucket, destination_key)
+    o.copy_from(CopySource=source_bucket + '/' + source_key)
+
+
+def get_bucket_key_pairs_from_event(event):
+    return [(record['s3']['bucket']['name'],
+             record['s3']['object']['key'])
+            for record
+            in event['Records']]
+
+
+def copy_handler(aws_config, jaya_context, event, context):
+    # You can access values set during deployment e.g. aws_config
+    print('Configuration Size:')
+    print(len(aws_config))  # or print any value
+
+    bucket_key_pairs = get_bucket_key_pairs_from_event(event)
+    destination_buckets = [s3_child.bucket for s3_child in jaya_context.children()]
+
+    for destination_bucket in destination_buckets:
+        for source_bucket, source_key in bucket_key_pairs:
+            copy_from_s3_to_s3(aws_config,
+                               source_bucket,
+                               source_key,
+                               destination_bucket,
+                               source_key)
+
+
+```
+
+### Copy Pipeline
+##### jaya-client/jayaclient/pipelines/copy_pipeline.py
+```pythonstub
+from jaya import S3, Pipeline, AWSLambda
+
+from jayaclient.pipelines import copy_helper
+from jayaclient.config import config
+# Note this import is for adding the AWSLambda dependencies
+import jayaclient
+import functools
+from functools import partial, wraps
+
+environment = 'development'
+# I get my aws_id and aws_key in a `conf` dict
+conf = config.get_aws_config(environment)
+region = 'us-east-1'
+pipeline_name = 'my-copy-pipeline'
+lambda_name = 'CopyLambda'
+
+s1 = S3(bucket_name='tsa-tmp-bucket1',
+        region_name=region,
+        events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name=lambda_name)])
+
+# copy_handler takes an additional config parameter which we can set right now before deployment
+handler = partial(copy_helper.copy_handler, conf)
+
+copy_lambda = AWSLambda(lambda_name,
+                        handler,
+                        region,
+                        alias=environment,
+                        virtual_environment_path='/Users/rabraham/Documents/dev/thescore/analytics/jaya-client/venv3/',
+                        role_name='lambda_s3_exec_role',  # Existing role which has to be created manually
+                        description="Hail Copy Handler",
+                        dependencies=[jayaclient, copy_helper])
+
+s2 = S3(bucket_name='thescore-tmp-bucket2', region_name=region)
+
+p = s1 >> copy_lambda >> s2
+piper = Pipeline(pipeline_name, [p])
+
+```
+
+### Deploy the pipeline
+```bash
+jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.conf --file=./jayaclient/pipelines/copy_pipeline.py --pipeline=my-copy-pipeline
+```
+
+### Redeploy a specific lambda function(e.g after making changes)
+```bash
+jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.conf --file=./jayaclient/pipelines/s3_to_redshift_pipeline.py --pipeline=my-s3-to-redshift --function=CopyLambda
+```
+
+# Why Jaya?
 ## Readability
 Currently, we can specify our deployment as a `JSON` dictionary. For a very simple pipeline, check out the PSEUDO ABSOLUTELY INCORRECT CloudFormation JSON Dict
  
@@ -69,10 +249,11 @@ Currently, we can specify our deployment as a `JSON` dictionary. For a very simp
 
 What if we could capture the same intent in Python: 
 
-```python
+```pythonstub
+
 conf = .. AWS Key etc..
-s1 = S3("tsa-rajiv-bucket1", 'us-east-1', on=[S3.ALL_CREATED_OBJECTS])
-l1 = CopyS3Lambda({}, 'us-east-1', 'development')
+s1 = S3("tsa-rajiv-bucket1", 'us-east-1', on=[event(S3.ALL_CREATED_OBJECTS, service_name='CopyRajiv')])
+l1 = CopyS3Lambda('CopyRajiv', 'us-east-1', 'development')
 s2 = S3("tsa-rajiv-bucket2", "us-east-1")
 p = s1 >> l1 >> s2
 piper = Pipeline("three-node-pipe", [p])
@@ -92,121 +273,4 @@ p = n1 >> n2 >> [n3 >> n4 >> [n7,
 * We have a class which represents a lambda function i.e. `AWSLambda` (`CopyS3Lambda` internally creates an `AWSLambda` instance). We now have a *language* to describe a Lambda as a Python class.
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
-
-Here is another pipeline all the way from an S3 bucket to the Redshift database 
-
-```python
-from jaya.core import S3, Pipeline, Firehose, Table
-from jaya.util.aws_lambda.aws_lambda_utils import MapS3ToFirehoseLambda
-import gzip
-import sqlalchemy as sa
-from jaya.deployment import deploy
-
-def a_mapper(line, bucket, key):
-    """
-    A function for the MapS3ToFirehoseLambda. Returning Hard Code Values for now. But it should transform the `line` into some JSON list that can be read by Firehose
-    """
-    return [{'firehose_name': 'my-firehose',
-             'result': [{'name': 'Rajiv', 'age': '65'}, {'name': 'Harry', 'age': '72'}]}
-
-            ]
-
-environment = 'staging'
-region = 'us-east-1'
-source_bucket = 'my-source-bucket'
-source_s3 = S3(source_bucket, region, on=[S3.ALL_CREATED_OBJECTS])
-firehose_name = 'my-firehose'
-
-db_conf = {'db-name': 'my-db-name',
-           'db-user': 'my-user',
-           'db-passwd': 'my-passwd',
-           'db-server': 'my-cluser-url'}
-
-table = 'my-table'
-holding_bucket = 'my-holding-bucket'
-aws_conf = {'firehose_role': 'my_role'} # and other AWS Credentials
-
-firehose_s3_prefix = 'my-firehose-prefix'
-schema = 'my-schema'  
-mapper = MapS3ToFirehoseLambda(open_function=gzip.open,
-                               map_function=a_mapper,
-                               batch_size=499,
-                               memory=1536,
-                               timeout=300,
-                               region_name=region,
-                               alias=environment)
-
-a_firehose = Firehose(firehose_name,
-                        db_conf['db-name'],
-                        db_conf['db-user'],
-                        db_conf['db-passwd'],
-                        db_conf['db-server'],
-                        table,
-                        holding_bucket,
-                        aws_conf['firehose_role'],
-                        prefix=firehose_s3_prefix,
-                        buffering_interval_seconds=60
-                        )
-a_table = Table(
-    db_conf,
-    table,
-    sa.Column('name', sa.String),
-    sa.Column('age', sa.String),
-    schema=schema,
-    redshift_diststyle='KEY',
-    redshift_distkey='name',
-
-)
-p = source_s3 \    
-    >> mapper \
-    >> a_firehose \
-    >> a_table
-piper = Pipeline('my-trial', [p])
-
-deploy.deploy_pipeline(aws_conf, piper)
-```
-## Deployment
-
-```python
-# Deploy the pipeline
-from jaya.deployment import deploy
-piper = ...
-aws_conf = {}
-deploy.deploy_pipeline(aws_conf,  piper)    
-
-```
-
-## Unit Testing(Future Feature)
-```python
-from jaya.mock.in_memory_harness import test
-import config
-import io
-from jaya.core import S3, Pipeline
-from jaya.util.aws_lambda.aws_lambda_utils import  CopyS3Lambda
-
-# Unit Test the pipeline(Future Feature) by creating an in memory local pipeline
-region = 'us-east-1'
-environment = 'development'
-conf = config.get_aws_config(environment)
-
-source = 'tsa-rajiv-bucket1'
-destination = 'tsa-rajiv-bucket2'
-p = S3(source, region, on=[S3.ALL_CREATED_OBJECTS]) \
-    >> CopyS3Lambda({}, region, environment) \
-    >> S3(destination, 'us-east-1')
-
-piper = Pipeline('three-node-pipe', [p])
-
-
-with test(piper) as test_harness:
-    s3 = test_harness.s3()
-    a_key = 'a_key'
-    file_content = io.BytesIO(b'Hi Rajiv')
-    s3.Bucket(source).put_object(Key=a_key, Body=file_content)
-    obj = s3.Object(bucket_name=source, key=a_key)
-    response = obj.get()
-    data = response['Body'].read()
-    self.assertEqual(data, file_content.getvalue())
-
-```
 

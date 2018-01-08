@@ -47,7 +47,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'two-node-pipe'
         lambda_name = 'Echo1'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[event(S3.ALL_CREATED_OBJECTS, service_name=lambda_name)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, events=[event(S3.ALL_CREATED_OBJECTS, service_name=lambda_name)])
         l1 = AWSLambda(lambda_name,
                        echo_handler,
                        DEFAULT_REGION,
@@ -79,7 +79,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'three-node-pipe'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
 
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, events=[lambda_event(lambda_name)])
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
                        DEFAULT_REGION,
@@ -111,7 +111,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'three-node-pipe'
         dont_qualify_lambda_name = False
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, dont_qualify_lambda_name)
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, events=[lambda_event(lambda_name)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
@@ -142,8 +142,8 @@ class DeployTestCase(unittest.TestCase):
         lambda_name = 'CopyS3Lambda1'
         pipeline_name = 'incorrect-pipe-with-multiple-lambdas-with-same-name'
 
-        s1 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
-        s2 = S3(BUCKET2, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+        s1 = S3(BUCKET1, DEFAULT_REGION, events=[lambda_event(lambda_name)])
+        s2 = S3(BUCKET2, DEFAULT_REGION, events=[lambda_event(lambda_name)])
         l1 = AWSLambda(lambda_name,
                        copy_handler_partial,
                        DEFAULT_REGION,
@@ -171,7 +171,7 @@ class DeployTestCase(unittest.TestCase):
                               dependencies=[jaya])
 
         lambda_name = 'Echo1'
-        s1 = S3(BUCKET2, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+        s1 = S3(BUCKET2, DEFAULT_REGION, events=[lambda_event(lambda_name)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
 
         l1 = echo_lambda(name=lambda_name)
