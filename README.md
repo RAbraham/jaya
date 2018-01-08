@@ -1,6 +1,30 @@
 # jaya
-[Experimental] Create Data Pipelines using AWS Services in Python 
+[Experimental][Seeking Feedback] Create Data Pipelines using AWS Services in Python 
 
+Express your data flow between services in Python. Pseudocode below. See the section `Example Code` for the full implementation.
+```pythonstub
+from jaya import S3, AWSLambda
+import copy_helper
+from functools import partial
+conf = ...
+s1 = S3(bucket_name='tsa-tmp-bucket1',
+        region_name='us-east-1',
+        events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name='CopyLambda')])
+
+# copy_handler takes an additional config parameter which we can set right now before deployment
+handler = partial(copy_helper.copy_handler, conf)
+
+copy_lambda = AWSLambda('CopyLambda',
+                        handler,
+                        ...)
+
+s2 = S3(bucket_name='tsa-tmp-bucket2', region_name=region)
+
+p = s1 >> copy_lambda >> s2
+
+```
+Above, `p` indicates whenever a file is created in bucket `tsa-tmp-bucket1` , invoke the lambda named `CopyLambda` and copy the file to the bucket `tsa-tmp-bucket2`
+# Example Code
 Tested on 3.6+
 
 ```bash
