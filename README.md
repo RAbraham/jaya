@@ -2,6 +2,8 @@
 [Experimental][Seeking Feedback] Create Data Pipelines using AWS Services in Python 
 
 Express your data flow between services in Python. Pseudocode below. See the section `Example Code` for the full implementation.
+
+## Elevator Pitch(Pseudocode)
 ```pythonstub
 from jaya import S3, AWSLambda
 import copy_helper
@@ -270,21 +272,11 @@ Currently, we can specify our deployment as a `JSON` dictionary. For a very simp
 
 ```
 
-What if we could capture the same intent in Python: 
+What if we could capture the same intent in Python: See the section `Elevator Pitch(Pseudocode)` for how the above would be expressed in `jaya`
 
-```pythonstub
 
-conf = .. AWS Key etc..
-s1 = S3("tsa-rajiv-bucket1", 'us-east-1', on=[event(S3.ALL_CREATED_OBJECTS, service_name='CopyRajiv')])
-l1 = CopyS3Lambda('CopyRajiv', 'us-east-1', 'development')
-s2 = S3("tsa-rajiv-bucket2", "us-east-1")
-p = s1 >> l1 >> s2
-piper = Pipeline("three-node-pipe", [p])
-
-```
-
-There are many benefits here:
-* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyS3Lambda` which writes to a `s2` bucket. Granted that, we could compose the data too in the JSON dict. It may be personal opinion that the tree like syntax reads better. Imagine a complex multi-child tree.
+The benefits of using `jaya`:
+* We can see the flow of data through the pipeline more easily. We see that a `s1` bucket feeds into a `CopyLambda` which writes to a `s2` bucket. Granted that, we could compose the data too in the JSON dict. It may be personal opinion that the tree like syntax reads better. Imagine a complex multi-child tree.
 ```python
 p = n1 >> n2 >> [n3 >> n4 >> [n7,
                               n8],
@@ -293,11 +285,17 @@ p = n1 >> n2 >> [n3 >> n4 >> [n7,
 
 * In the CloudFormation Script above, we just see that the lambda code was zipped and placed in an s3 bucket. How do we know which piece of code and from where. In the Python code above, we can use the `Goto Definition` feature in many editors and instantly look at the lambda code. We blur the line between functionality and deployment specific information. 
 
-* We have a class which represents a lambda function i.e. `AWSLambda` (`CopyS3Lambda` internally creates an `AWSLambda` instance). We now have a *language* to describe a Lambda as a Python class.
+* We have a class which represents a lambda function i.e. `AWSLambda`. We now have a *language* to describe a Lambda as a Python class.
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
 
 
+## Installation
+Currently, I expect a lot of iterations and hence hesitate to publish a pip versioned library. However, if you wish to play with it, you can
+
+```bash
+pip install git+ssh://git@github.com/scoremedia/jaya.git
+```
 ## TODO
 - Add Dead Letter Queue Support to `AWSLambda`
 - Add Environment variables etc. to `AWSLambda`
