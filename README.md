@@ -72,7 +72,7 @@ piper = Pipeline('my-echo-pipeline', [p])
 The code piece `p = s1 >> echo_lambda` says 
 
 * create `s1` if it does not exist, create or update `echo_lambda`
-* create a event notification such that if a file is created in `tsa-my-source-bucket`, it will invoke `EchoLambda`.   
+* create an event notification such that if a file is created in `tsa-my-source-bucket`, it will invoke `EchoLambda`.   
 
 ### Deploy the pipeline
 ```bash
@@ -83,7 +83,7 @@ The above code will create the S3 buckets if they don't exist.
 If you go to your AWS Lambda Console, you'll see an entry titled `my-echo-pipeline_EchoLambda`. Check the alias `development` and you'll see the trigger for the S3 bucket. Likewise, if you go to the S3 Console for the bucket `tsa-my-source-bucket`, you'll see the event notification added for the lambda function and alias. 
 
 ## Example: Copy Files from one S3 bucket to another
-Let's create another example, where when a file is created in one bucket, it gets copied to another bucket.
+Let's create another example, where, when a file is created in one bucket, it gets copied to another bucket.
 
 ### Create the helper file
 ##### jaya-client/jayaclient/pipelines/copy_helper.py
@@ -117,7 +117,7 @@ def copy_handler(aws_config, jaya_context, event, context):
     print(len(aws_config))  # or print any value
 
     bucket_key_pairs = get_bucket_key_pairs_from_event(event)
-    destination_buckets = [s3_child.bucket for s3_child in jaya_context.children()]
+    destination_buckets = [s3_child.bucket_name for s3_child in jaya_context.children()]
 
     for destination_bucket in destination_buckets:
         for source_bucket, source_key in bucket_key_pairs:
@@ -126,7 +126,6 @@ def copy_handler(aws_config, jaya_context, event, context):
                                source_key,
                                destination_bucket,
                                source_key)
-
 
 ```
 
@@ -139,8 +138,7 @@ from jayaclient.pipelines import copy_helper
 from jayaclient.config import config
 # Note this import is for adding the AWSLambda dependencies
 import jayaclient
-import functools
-from functools import partial, wraps
+from functools import partial
 
 environment = 'development'
 # I get my aws_id and aws_key in a `conf` dict
@@ -165,10 +163,11 @@ copy_lambda = AWSLambda(lambda_name,
                         description="Hail Copy Handler",
                         dependencies=[jayaclient, copy_helper])
 
-s2 = S3(bucket_name='thescore-tmp-bucket2', region_name=region)
+s2 = S3(bucket_name='tsa-tmp-bucket2', region_name=region)
 
 p = s1 >> copy_lambda >> s2
 piper = Pipeline(pipeline_name, [p])
+
 
 ```
 
