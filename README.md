@@ -299,3 +299,6 @@ pip install git+ssh://git@github.com/scoremedia/jaya.git
 ## TODO
 - Add Dead Letter Queue Support to `AWSLambda`
 - Add Environment variables etc. to `AWSLambda`
+- [Investigate] Automatically infer virtual environment path?
+- Automatically create roles to let for e.g. the `AWSLambda` to read from an S3 bucket
+
