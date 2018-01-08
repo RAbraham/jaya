@@ -273,3 +273,7 @@ p = n1 >> n2 >> [n3 >> n4 >> [n7,
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
 
+
+## TODO
+- Add Dead Letter Queue Support to `AWSLambda`
+- Add Environment variables etc. to `AWSLambda`
