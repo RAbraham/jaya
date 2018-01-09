@@ -15,7 +15,7 @@ setup(
     long_description=readme,
     author='Rajiv Abraham',
     author_email='rajiv.abraham@gmail.com',
-    url='https://github.com/scoremedia/jaya-aws',
+    url='https://github.com/scoremedia/jaya',
     license=license,
     packages=find_packages(),
     include_package_data=True,
