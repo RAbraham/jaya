@@ -26,6 +26,14 @@ p = s1 >> copy_lambda >> s2
 
 ```
 Above, `p` indicates whenever a file is created in bucket `tsa-tmp-bucket1` , invoke the lambda named `CopyLambda` and copy the file to the bucket `tsa-tmp-bucket2`
+
+## Installation
+Currently, I expect a lot of iterations and hence hesitate to publish a pip versioned library. However, if you wish to play with it, you can
+
+```bash
+pip install git+ssh://git@github.com/scoremedia/jaya.git
+```
+
 # Example Code
 Tested on 3.6+
 
@@ -36,7 +44,7 @@ cd jaya-client
 # Only tested on Python 3.6+
 virtualenv -p python3 venv3
 source venv3/bin/activate
-pip install jaya
+# Install Jaya(See section `Installation`)
 ```
 
 ### Create a config file
@@ -290,12 +298,6 @@ p = n1 >> n2 >> [n3 >> n4 >> [n7,
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
 
 
-## Installation
-Currently, I expect a lot of iterations and hence hesitate to publish a pip versioned library. However, if you wish to play with it, you can
-
-```bash
-pip install git+ssh://git@github.com/scoremedia/jaya.git
-```
 ## TODO
 - Add Dead Letter Queue Support to `AWSLambda`
 - Add Environment variables etc. to `AWSLambda`
