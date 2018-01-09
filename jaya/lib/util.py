@@ -224,3 +224,7 @@ def sha256_of_zipfile(file_path):
         m = hashlib.sha256()
         m.update(code)
         return m.digest()
+
+
+def optional(**kwargs):
+    return {k: v for k, v in kwargs.items() if v}

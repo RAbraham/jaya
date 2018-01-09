@@ -60,7 +60,8 @@ class AWSLambda(Service):
                  description='',
                  virtual_environment_path=None,
                  role_name=None,
-                 tracing_config=None):
+                 tracing_config=None,
+                 environment_variables=None):
         self.name = name
         self.handler_func = handler
         self.handler = partial(self.handler_func, SajanContext())
@@ -80,6 +81,7 @@ class AWSLambda(Service):
         self.role_name = role_name
 
         self.tracing_config = tracing_config or {'Mode': 'PassThrough'}
+        self.environment_variables = environment_variables
         # super(AWSLambda, self).__init__([self.name, self.handler_func, self.dependency_paths])
         # TODO: Pass all lambda values?
         super(AWSLambda, self).__init__(service_name=aws.LAMBDA,
@@ -89,8 +91,10 @@ class AWSLambda(Service):
                                         alias=self.alias,
                                         description=self.description,
                                         virtual_environment_path=self.virtual_environment_path,
-                                        dependence_paths=self.dependency_paths,
-                                        role_name=self.role_name)
+                                        dependency_paths=self.dependency_paths,
+                                        role_name=self.role_name,
+                                        tracing_config=self.tracing_config,
+                                        environment_variables=self.environment_variables)
 
     def __rshift__(self, node_or_nodes):
         children = sajan_util.listify(node_or_nodes)

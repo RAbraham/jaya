@@ -116,10 +116,32 @@ def create_lambda_simple(config,
                          lsize=512,
                          timeout=10,
                          update=True,
-                         region_name=None):
+                         region_name=None,
+                         environment_variables=None):
     create_s3_bucket(config, bucket, region_name)
     upload_to_s3(config, zfile, bucket, key)
     l = client(config, 'lambda', region_name)
+
+    mandatory_params = dict(FunctionName=name,
+                            Runtime=runtime,
+                            Role=role['Arn'],
+                            Handler=handler_name,
+                            Code={'S3Bucket': bucket,
+                                  'S3Key': key}, )
+    if environment_variables:
+        environment_var_dict = {'Variables': environment_variables}
+    else:
+        environment_var_dict = None
+
+    optional_params = util.optional(
+        Description=description,
+        Timeout=timeout,
+        MemorySize=lsize,
+        Publish=True,
+        Environment=environment_var_dict)
+
+    param_dict = util.merge_dicts(optional_params, mandatory_params)
+
     """ Create, or update if exists, lambda function """
 
     with open(zfile, 'rb') as zipfile:
@@ -135,23 +157,50 @@ def create_lambda_simple(config,
                         lfunc = f
         else:
             print('Creating %s lambda function' % (name))
-            lfunc = l.create_function(
-                FunctionName=name,
-                Runtime=runtime,
-                Role=role['Arn'],
-                Handler=handler_name,
-                Description=description,
-                Timeout=timeout,
-                MemorySize=lsize,
-                Publish=True,
-                # Code={'ZipFile': zipfile.read()},
-                Code={'S3Bucket': bucket,
-                      'S3Key': key}
-            )
+            lfunc = l.create_function(**param_dict)
         lfunc['Role'] = role
         return lfunc
 
-
+# Template for Lambda Create Function
+# client.create_function(
+#     FunctionName='string',
+#     Runtime='nodejs'|'nodejs4.3'|'nodejs6.10'|'java8'|'python2.7'|'python3.6'|'dotnetcore1.0'|'nodejs4.3-edge',
+#     Role='string',
+#     Handler='string',
+#     Code={
+#         'ZipFile': b'bytes',
+#         'S3Bucket': 'string',
+#         'S3Key': 'string',
+#         'S3ObjectVersion': 'string'
+#     },
+#     Description='string',
+#     Timeout=123,
+#     MemorySize=123,
+#     Publish=True|False,
+#     VpcConfig={
+#         'SubnetIds': [
+#             'string',
+#         ],
+#         'SecurityGroupIds': [
+#             'string',
+#         ]
+#     },
+#     DeadLetterConfig={
+#         'TargetArn': 'string'
+#     },
+#     Environment={
+#         'Variables': {
+#             'string': 'string'
+#         }
+#     },
+#     KMSKeyArn='string',
+#     TracingConfig={
+#         'Mode': 'Active'|'PassThrough'
+#     },
+#     Tags={
+#         'string': 'string'
+#     }
+# )
 def delete_lambda(config, lambda_name, region_name):
     l = client(config, 'lambda', region_name)
     l.delete_function(

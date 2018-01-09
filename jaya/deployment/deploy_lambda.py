@@ -185,7 +185,8 @@ def deploy_lambda_simple(conf, a_lambda, zip_package_path):
                                            lsize=a_lambda.memory,
                                            timeout=a_lambda.timeout,
                                            update=True,
-                                           region_name=a_lambda.region_name)
+                                           region_name=a_lambda.region_name,
+                                           environment_variables=a_lambda.environment_variables)
 
     if a_lambda.alias:
         lambda_client.delete_alias(
