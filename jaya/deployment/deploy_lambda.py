@@ -22,18 +22,6 @@ JAYA_TMP_DIR = 'jaya-tmp'
 MOCK_CREDENTIALS = {'aws_id': 'rajiv_id', 'aws_key': 'rajiv_key'}
 
 
-# def python_packages_for_env(virtual_env_path):
-#     python_package_dir = virtual_env_path + '/' + 'lib/python2.7/site-packages'
-#     return util.get_children(python_package_dir)
-
-
-# def zip_project(lambda_file_path, virtual_env_path, dependency_paths, destination_path):
-#     python_packages_path = python_packages_for_env(virtual_env_path)
-#     code_paths = [lambda_file_path] + python_packages_path + dependency_paths
-#     # make_zipfile(destination_path, code_paths)
-#     make_zipfile_new(destination_path, code_paths)
-
-
 def make_zipfile(output_filename, source_dirs_or_files):
     with zipfile.ZipFile(output_filename, "w", zipfile.ZIP_DEFLATED) as zip:
         for source_dir_or_file in source_dirs_or_files:
@@ -65,148 +53,9 @@ def make_zipfile(output_filename, source_dirs_or_files):
 #     call(zip_cmd_str, shell=True)
 
 
-# dependency_paths: list of paths either file or folder other than config and lib
-# def deploy(environment, lambda_file, lambda_description, virtual_env_path, dependency_paths=None,
-#            memory=MAX_LAMBDA_MEMORY, timeout=MAX_LAMBDA_TIMEOUT, update=False, lambda_name=None, region_name=None,
-#            python_package_dir=None,
-#            is_python3=False,
-#            mock=False):
-#     file_name = os.path.basename(lambda_file).split('.')[0]
-#
-#     if not dependency_paths:
-#         dependency_paths = []
-#
-#     if not lambda_name:
-#         lambda_name = file_name
-#
-#     if not python_package_dir:
-#         python_package_dir = virtual_env_path + '/' + 'lib/python2.7/site-packages'
-#     python_packages = util.get_children(python_package_dir)
-#     common_folders = [config.lib_folder(), config.config_folder(), lambda_file]
-#
-#     code_paths = python_packages + common_folders + dependency_paths
-#
-#     return deploy_lambda(environment,
-#                          lambda_name,
-#                          code_paths,
-#                          'lambda_s3_exec_role',
-#                          memory,
-#                          timeout,
-#                          lambda_description=lambda_description,
-#                          alias_description='Alias for ' + environment,
-#                          update=update,
-#                          handler_name=file_name,
-#                          region_name=region_name,
-#                          is_python3=is_python3,
-#                          mock=mock)
-
-
 def tmp_path():
     #     TODO: Return appropriate temp path based on OS Plaform e.g Windows, Mac
     return '/tmp'
-
-
-# code_paths is a list of modules and packages that should be packaged in the lambda
-# def deploy_lambda(environment,
-#                   lambda_name,
-#                   code_paths,
-#                   role_name,
-#                   memory,
-#                   timeout,
-#                   function_version=LATEST_VERSION_TAG,
-#                   lambda_description='',
-#                   alias_description='',
-#                   update=True,
-#                   zipfile_path=None,
-#                   handler_name=None,
-#                   region_name=None,
-#                   is_python3=False,
-#                   mock=False
-#                   ):
-#     conf = config.get_aws_config(environment)
-#
-#     if not handler_name:
-#         handler_name = lambda_name
-#
-#     if not zipfile_path:
-#         output_filename = '/tmp/' + lambda_name + '.zip'
-#     else:
-#         output_filename = zipfile_path
-#
-#     print("Saving zipped code at:" + output_filename)
-#
-#     make_zipfile(output_filename, code_paths)
-#
-#     # IAM
-#     handler_name = handler_name + '.handler'
-#     lambda_func = None
-#     if not mock:
-#         lambda_client = aws.client(conf, 'lambda', region_name=region_name)
-#         iam = aws.client(conf, 'iam')
-#         role = iam.get_role(RoleName=role_name)['Role']
-#         lambda_func = aws.create_lambda(conf,
-#                                         lambda_name,
-#                                         output_filename,
-#                                         role,
-#                                         handler_name,
-#                                         lambda_description,
-#                                         lsize=memory,
-#                                         timeout=timeout,
-#                                         update=update,
-#                                         region_name=region_name,
-#                                         is_python3=is_python3)
-#     else:
-#         # print('Rajiv: In Mock AWS')
-#         # lambda_client = aws_stack.connect_to_service('lambda')
-#         # s3_client = aws_stack.connect_to_service('s3')
-#         # bucket_name = 'test_bucket_lambda'
-#         # bucket_key = 'test_lambda.zip'
-#         # with open(output_filename, "rb") as file_obj:
-#         #     zip_file = file_obj.read()
-#         #
-#         # s3_client.create_bucket(Bucket=bucket_name)
-#         # s3_client.upload_fileobj(BytesIO(zip_file), bucket_name, bucket_key)
-#         # lambda_func = lambda_client.create_function(
-#         #     FunctionName=lambda_name,
-#         #     Runtime='python3.6',
-#         #     Role='r1',
-#         #     Handler=handler_name,
-#         #     Code={
-#         #         'S3Bucket': bucket_name,
-#         #         'S3Key': bucket_key
-#         #     }
-#         # )
-#         pass
-#     # Add Alias
-#
-#     lambda_client.delete_alias(
-#         FunctionName=lambda_name,
-#         Name=environment
-#     )
-#
-#     lambda_client.create_alias(
-#         FunctionName=lambda_name,
-#         Name=environment,
-#         FunctionVersion=function_version,
-#         Description=alias_description
-#     )
-#
-#     return lambda_func
-
-
-# def lambda_path(lambda_name, app_folder_name):
-#     file_name = lambda_name + '.py'
-#     etl_path = config.project_root() + '/' + app_folder_name
-#     lambda_file = etl_path + '/lambdas/' + file_name
-#     return lambda_file
-
-
-# def virtual_env():
-#     return config.project_root() + '/venv'
-#
-
-# def project_paths(dependency_paths):
-#     return [config.project_root() + '/' + path for path in dependency_paths]
 
 
 def deploy_lambda_package_new_simple(conf,
@@ -269,12 +118,10 @@ def make_lambda_conf(base64_encoded_sha256,
             'CodeSize': code_size,
             'Description': description,
             'FunctionArn': a_function_arn,
-            # 'FunctionArn': 'arn:aws:lambda:us-east-1:027995586716:function:dmp-trial_Echo1:development',
             'FunctionName': function_name,
             'Handler': handler_name,
             'MemorySize': memory_size,
             'Role': role,
-            # 'Role': 'arn:aws:iam::027995586716:role/lambda_s3_exec_role',
             'Runtime': runtime,
             'Timeout': timeout,
             'TracingConfig': tracing_config,
@@ -311,7 +158,6 @@ def make_role_arn(account_id, role_name):
 
 
 def function_arn(region_name, account_id, qualified_lambda_name, alias=None):
-    'arn:aws:lambda:us-east-1:027995586716:function:dmp-trial_Echo1:development'
     main_arn = 'arn:aws:lambda:{region_name}:{account_id}:function:{qualified_lambda_name}'.format(
         region_name=region_name,
         account_id=account_id,

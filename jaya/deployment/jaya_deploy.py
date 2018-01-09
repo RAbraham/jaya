@@ -3,7 +3,7 @@ from jaya import Pipeline
 from jaya import deploy_node, deploy_pipeline
 import os
 from jaya.config import config
-import sys
+
 
 def get_file_name(file_path):
     return os.path.basename(file_path).split('.')[0]
@@ -11,7 +11,6 @@ def get_file_name(file_path):
 
 
 def load_module(file_path):
-
     spec = importlib.util.spec_from_file_location(get_file_name(file_path), file_path)
     foo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(foo)
