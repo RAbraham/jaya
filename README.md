@@ -216,7 +216,7 @@ jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.con
 ```
 
 # Why Jaya?
-## Readability
+
 Currently, we can specify our deployment as a `JSON` dictionary. For a very simple pipeline, check out the PSEUDO ABSOLUTELY INCORRECT CloudFormation JSON Dict
  
 ```json
