@@ -20,11 +20,12 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'dill',
         'boto3',
+        'click',
+        'dill',
+        'pyrsistent',
         'sqlalchemy',
         'sqlalchemy-redshift',
-        'click'
     ],
     entry_points={
         'console_scripts': [

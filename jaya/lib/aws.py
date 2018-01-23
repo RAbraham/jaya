@@ -11,8 +11,8 @@ LAMBDA_ARN = 'LambdaFunctionArn'
 
 
 def resource(conf, resource_name, region_name=DEFAULT_REGION):
-    session = boto3.session.Session(aws_access_key_id=conf['aws_id'],
-                                    aws_secret_access_key=conf['aws_key'],
+    session = boto3.session.Session(aws_access_key_id=conf.get('aws_id'),
+                                    aws_secret_access_key=conf.get('aws_key'),
                                     region_name=region_name)
     return session.resource(resource_name)
 
@@ -20,8 +20,8 @@ def resource(conf, resource_name, region_name=DEFAULT_REGION):
 def client(conf, service_name, region_name=DEFAULT_REGION):
     return boto3.client(
         service_name,
-        aws_access_key_id=conf['aws_id'],
-        aws_secret_access_key=conf['aws_key'],
+        aws_access_key_id=conf.get('aws_id'),
+        aws_secret_access_key=conf.get('aws_key'),
         region_name=region_name
     )
 
@@ -117,7 +117,8 @@ def create_lambda_simple(config,
                          timeout=10,
                          update=True,
                          region_name=None,
-                         environment_variables=None):
+                         environment_variables=None,
+                         dead_letter_queue_arn=None):
     create_s3_bucket(config, bucket, region_name)
     upload_to_s3(config, zfile, bucket, key)
     l = client(config, 'lambda', region_name)
@@ -133,12 +134,18 @@ def create_lambda_simple(config,
     else:
         environment_var_dict = None
 
+    if dead_letter_queue_arn:
+        dead_letter_queue_dict = dict(TargetArn=dead_letter_queue_arn)
+    else:
+        dead_letter_queue_dict = None
+
     optional_params = util.optional(
         Description=description,
         Timeout=timeout,
         MemorySize=lsize,
         Publish=True,
-        Environment=environment_var_dict)
+        Environment=environment_var_dict,
+        DeadLetterConfig=dead_letter_queue_dict)
 
     param_dict = util.merge_dicts(optional_params, mandatory_params)
 
@@ -160,6 +167,7 @@ def create_lambda_simple(config,
             lfunc = l.create_function(**param_dict)
         lfunc['Role'] = role
         return lfunc
+
 
 # Template for Lambda Create Function
 # client.create_function(

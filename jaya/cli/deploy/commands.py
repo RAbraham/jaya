@@ -10,7 +10,7 @@ from jaya.deployment.jaya_deploy import deploy_file
 
 
 @click.command()
-@click.option('--config_file', required=True, help='Path to .conf file with AWS credentials etc.')
+@click.option('--config_file', required=False, help='Path to .conf file with AWS credentials etc.')
 @click.option('--file', required=True, help='Path to file which contains the pipeline')
 @click.option('--pipeline', required=True, help='Name of the pipeline')
 @click.option('--function', required=False, help='Path to file which contains the pipeline')

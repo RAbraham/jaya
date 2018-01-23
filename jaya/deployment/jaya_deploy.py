@@ -3,6 +3,7 @@ from jaya import Pipeline
 from jaya import deploy_node, deploy_pipeline
 import os
 from jaya.config import config
+from typing import Dict
 
 
 def get_file_name(file_path):
@@ -27,12 +28,23 @@ def get_pipelines(module):
     return pipelines
 
 
+def _get_aws_conf(config_file: str) -> Dict[str, str]:
+    if config_file:
+        credentials = config.get(config_file)
+    else:
+        # Boto3 will figure it out.
+        credentials = dict(aws_access_key_id=None,
+                           aws_secret_access_key=None)
+
+    return credentials
+
+
 def deploy_file(config_file: str,
                 file_path: str,
                 pipeline_name: str,
                 qualify_lambda_name: bool,
                 lambda_name: str = None):
-    aws_conf = config.get(config_file)
+    aws_conf = _get_aws_conf(config_file)
     aws_conf['aws_id'] = aws_conf['aws_access_key_id']
     aws_conf['aws_key'] = aws_conf['aws_secret_access_key']
     pipelines = []

@@ -7,6 +7,8 @@ import sqlalchemy as sa
 from typing import Callable, List, Dict, TypeVar
 from functools import partial
 
+DLQ_SERVICES = ['SQS', 'SNS']
+
 PYTHON36 = 'python3.6'
 DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecolumns"
 C = TypeVar('C')
@@ -21,6 +23,7 @@ def require(keyword_argument, name):
 
 class S3(Service):
     ALL_CREATED_OBJECTS = 's3:ObjectCreated:*'
+    ALL_REMOVED_OBJECTS = 's3:ObjectRemoved:*'
 
     def __init__(self, bucket_name, region_name, events: List[Dict[str, str]] = None):
         if not events:
@@ -39,7 +42,7 @@ class S3(Service):
     @staticmethod
     def event(trigger, prefix=None, suffix=None, service_name=None):
         require(trigger, 'trigger')
-        require(service_name, 'service_name')
+        # require(service_name, 'service_name')
         return {'service_name': service_name,
                 'trigger': trigger,
                 'prefix': prefix,
@@ -61,7 +64,8 @@ class AWSLambda(Service):
                  virtual_environment_path=None,
                  role_name=None,
                  tracing_config=None,
-                 environment_variables=None):
+                 environment_variables=None,
+                 dead_letter_queue: Dict[str, str] = None):
         self.name = name
         self.handler_func = handler
         self.handler = partial(self.handler_func, SajanContext())
@@ -82,7 +86,12 @@ class AWSLambda(Service):
 
         self.tracing_config = tracing_config or {'Mode': 'PassThrough'}
         self.environment_variables = environment_variables
-        # super(AWSLambda, self).__init__([self.name, self.handler_func, self.dependency_paths])
+        self.dead_letter_queue = dead_letter_queue
+        if self.dead_letter_queue:
+            service = self.dead_letter_queue['service']
+            assert service in DLQ_SERVICES, "Invalid {} not in {}".format(service, DLQ_SERVICES)
+
+            # super(AWSLambda, self).__init__([self.name, self.handler_func, self.dependency_paths])
         # TODO: Pass all lambda values?
         super(AWSLambda, self).__init__(service_name=aws.LAMBDA,
                                         lambda_name=self.name,
@@ -94,7 +103,8 @@ class AWSLambda(Service):
                                         dependency_paths=self.dependency_paths,
                                         role_name=self.role_name,
                                         tracing_config=self.tracing_config,
-                                        environment_variables=self.environment_variables)
+                                        environment_variables=self.environment_variables,
+                                        dead_letter_queue=self.dead_letter_queue)
 
     def __rshift__(self, node_or_nodes):
         children = sajan_util.listify(node_or_nodes)

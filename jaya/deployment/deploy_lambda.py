@@ -58,12 +58,12 @@ def tmp_path():
     return '/tmp'
 
 
-def deploy_lambda_package_new_simple(conf,
-                                     aws_lambda_function,
-                                     working_directory=tmp_path()
-                                     ):
+def deploy_lambda_package(conf,
+                          aws_lambda_function,
+                          working_directory=tmp_path()
+                          ):
     package_path = make_lambda_zip_package(aws_lambda_function, working_directory)
-    deploy_lambda_simple(conf, aws_lambda_function, package_path)
+    deploy_lambda(conf, aws_lambda_function, package_path)
 
 
 def make_lambda_zip_package(aws_lambda_function, working_directory):
@@ -168,10 +168,23 @@ def function_arn(region_name, account_id, qualified_lambda_name, alias=None):
         return main_arn
 
 
-def deploy_lambda_simple(conf, a_lambda, zip_package_path):
+def sns_arn(region_name, account_id, sns_name):
+    return "arn:aws:sns:{}:{}:{}".format(region_name, account_id, sns_name)
+
+
+def deploy_lambda(conf, a_lambda, zip_package_path):
     lambda_client = aws.client(conf, 'lambda', region_name=a_lambda.region_name)
     iam = aws.client(conf, 'iam')
     role = iam.get_role(RoleName=a_lambda.role_name)['Role']
+    dlq_arn = None
+    if a_lambda.dead_letter_queue:
+        service = a_lambda.dead_letter_queue['service']
+        if service == 'SNS':
+            account_id = aws.get_account_id(conf)
+            sns_name = a_lambda.dead_letter_queue['name']
+            dlq_arn = sns_arn(a_lambda.region_name, account_id, sns_name)
+        elif service == 'SQS':
+            raise ValueError('SQS as Dead Letter Queue not supported yet')
 
     lambda_func = aws.create_lambda_simple(conf,
                                            a_lambda.name,
@@ -186,7 +199,8 @@ def deploy_lambda_simple(conf, a_lambda, zip_package_path):
                                            timeout=a_lambda.timeout,
                                            update=True,
                                            region_name=a_lambda.region_name,
-                                           environment_variables=a_lambda.environment_variables)
+                                           environment_variables=a_lambda.environment_variables,
+                                           dead_letter_queue_arn=dlq_arn)
 
     if a_lambda.alias:
         lambda_client.delete_alias(
