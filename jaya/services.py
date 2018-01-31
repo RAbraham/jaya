@@ -25,10 +25,9 @@ class S3(Service):
     ALL_CREATED_OBJECTS = 's3:ObjectCreated:*'
     ALL_REMOVED_OBJECTS = 's3:ObjectRemoved:*'
 
-    def __init__(self, bucket_name, region_name, events: List[Dict[str, str]] = None):
+    def __init__(self, bucket_name: str, region_name: str, events: List[Dict[str, str]] = None):
         if not events:
             events = []
-        assert type(events) == list, 'events should be of type list'
 
         # TODO: If region_name is made optional, then it should be US Standard or whatever the default is?
         self.bucket_name = bucket_name
@@ -40,9 +39,8 @@ class S3(Service):
                                  events=events)
 
     @staticmethod
-    def event(trigger, prefix=None, suffix=None, service_name=None):
+    def event(trigger: str, prefix: str = None, suffix: str = None, service_name: str = None) -> Dict[str, str]:
         require(trigger, 'trigger')
-        # require(service_name, 'service_name')
         return {'service_name': service_name,
                 'trigger': trigger,
                 'prefix': prefix,
@@ -52,11 +50,11 @@ class S3(Service):
 
 class AWSLambda(Service):
     def __init__(self,
-                 name,
+                 name: str,
                  handler,
-                 region_name,
-                 memory=1536,
-                 timeout=300,
+                 region_name: str,
+                 memory: int = 1536,
+                 timeout: int = 300,
                  alias=None,
                  dependencies=None,
                  runtime=PYTHON36,

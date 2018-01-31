@@ -23,7 +23,6 @@ setup(
         'boto3',
         'click',
         'dill',
-        'pyrsistent',
         'sqlalchemy',
         'sqlalchemy-redshift',
     ],
