@@ -1,28 +1,37 @@
 import boto3
 import json
 from jaya.lib import util
+from typing import Dict
 
 # from localstack.utils.aws import aws_stack
+SUBSCRIBE = "Subscribe"
+RECEIVE = "Receive"
 
 FUNCTION_ARN = 'FunctionArn'
-DEFAULT_REGION = 'us-east-1'
 DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecolumns"
 LAMBDA_ARN = 'LambdaFunctionArn'
 
 
-def resource(conf, resource_name, region_name=DEFAULT_REGION):
+# def resource(conf, resource_name):
+#     session = boto3.session.Session(aws_access_key_id=conf.get('aws_id'),
+#                                     aws_secret_access_key=conf.get('aws_key'),
+#                                     region_name=conf.get('region_name'))
+#     return session.resource(resource_name)
+
+
+def resource(conf, resource_name):
     session = boto3.session.Session(aws_access_key_id=conf.get('aws_id'),
                                     aws_secret_access_key=conf.get('aws_key'),
-                                    region_name=region_name)
+                                    region_name=conf.get('region_name'))
     return session.resource(resource_name)
 
 
-def client(conf, service_name, region_name=DEFAULT_REGION):
+def client(conf, service_name):
     return boto3.client(
         service_name,
         aws_access_key_id=conf.get('aws_id'),
         aws_secret_access_key=conf.get('aws_key'),
-        region_name=region_name
+        region_name=conf.get('region_name')
     )
 
 
@@ -64,7 +73,9 @@ def split_s3_path(s3_path):
 
 
 def create_s3_bucket(conf, bucket_name, region_name):
-    s3 = resource(conf, 's3', region_name=region_name)
+    # TODO: Why pass region name this way? Search for all such ones
+    conf['region_name'] = region_name
+    s3 = resource(conf, 's3')
     s3.create_bucket(Bucket=bucket_name)
 
 
@@ -121,7 +132,8 @@ def create_lambda_simple(config,
                          dead_letter_queue_arn=None):
     create_s3_bucket(config, bucket, region_name)
     upload_to_s3(config, zfile, bucket, key)
-    l = client(config, 'lambda', region_name)
+    config['region_name'] = region_name
+    l = client(config, 'lambda')
 
     mandatory_params = dict(FunctionName=name,
                             Runtime=runtime,
@@ -328,6 +340,159 @@ def add_s3_notification_for_lambda(conf, bucket_name, lambda_name, trigger, qual
     return responses
 
 
+def lambda_add_sns_permission(conf, account_id, lambda_name, sns_name, qualifier, region_name):
+    add = util.merge_dicts
+    responses = []
+    conf['region_name'] = region_name
+
+    lambda_client = client(conf, 'lambda')
+    # Giving SNS permission to invoke the lambda
+    action_name = 'InvokeFunction'
+    action = 'lambda:' + action_name
+    # statement_id = action_name + '_' + sns_name
+    statement_id = 'lambda-03a99f95-f490-4b9c-8bf8-20ee85fb2bff'
+    permission_main_kw = add({'StatementId': statement_id},
+                             lambda_parameters(lambda_name, qualifier))
+    # First, remove existing permissions if any
+    # TODO: What if the qualifier does not exist
+    try:
+        remove_response = lambda_client.remove_permission(**permission_main_kw)
+        responses.append(remove_response)
+    except:
+        print('Permission:{} for lambda:{} does not exist'.format(statement_id, lambda_name))
+        # The statement did not exist. So let's move on. I don't know of a way of checking if permissions exist
+        # for a lambda so this is the workaround
+        pass
+
+    # Add permission response,
+    add_permission_others_params = {'Action': action,
+                                    'Principal': 'sns.amazonaws.com',
+                                    'SourceArn': sns_arn(region_name, account_id, sns_name)
+                                    }
+    add_permission_params = add(permission_main_kw, add_permission_others_params)
+    add_response = lambda_client.add_permission(**add_permission_params)
+    responses.append(add_response)
+    from pprint import pprint
+    pprint('Add Permission Input')
+    pprint(add_permission_params)
+    pprint('SNS Permission Response')
+    pprint(add_response)
+    return responses
+
+
+def lambda_add_cloudwatch_event_permission(conf, account_id, lambda_name, event_name, qualifier, region_name):
+    add = util.merge_dicts
+    responses = []
+    conf['region_name'] = region_name
+
+    lambda_client = client(conf, 'lambda')
+    # Giving SNS permission to invoke the lambda
+    action_name = 'InvokeFunction'
+    action = 'lambda:' + action_name
+    statement_id = action_name + '_' + event_name
+    # statement_id = 'lambda-03a99f95-f490-4b9c-8bf8-20ee85fb2bff'
+    permission_main_kw = add({'StatementId': statement_id},
+                             lambda_parameters(lambda_name, qualifier))
+    # First, remove existing permissions if any
+    # TODO: What if the qualifier does not exist
+    try:
+        remove_response = lambda_client.remove_permission(**permission_main_kw)
+        responses.append(remove_response)
+    except:
+        print('Permission:{} for lambda:{} does not exist'.format(statement_id, lambda_name))
+        # The statement did not exist. So let's move on. I don't know of a way of checking if permissions exist
+        # for a lambda so this is the workaround
+        pass
+
+    # Add permission response,
+    add_permission_others_params = {'Action': action,
+                                    'Principal': 'events.amazonaws.com',
+                                    'SourceArn': event_arn(region_name, account_id, event_name)
+                                    }
+    add_permission_params = add(permission_main_kw, add_permission_others_params)
+    add_response = lambda_client.add_permission(**add_permission_params)
+    responses.append(add_response)
+    from pprint import pprint
+    pprint('Add Permission Input')
+    pprint(add_permission_params)
+    pprint('CloudWatch Event Permission Response')
+    pprint(add_response)
+    return responses
+    pass
+
+
+# def add_sns_notification_for_lambda(conf: Dict, sns_name: str, lambda_name: str, qualifier: str, region_name: str):
+#     sns_client = client(conf, 'sns')
+#     account_id = get_account_id(conf)
+#
+#     lambda_add_sns_permission(conf, account_id, lambda_name, sns_name, qualifier, region_name)
+#
+#     response = sns_client.subscribe(
+#         TopicArn=sns_arn(region_name, account_id, sns_name),
+#         Protocol='lambda',
+#         Endpoint=function_arn(region_name, account_id, lambda_name, qualifier)
+#     )
+#
+#     from pprint import pprint
+#     pprint('SNS Subscriber Response')
+#     pprint(response)
+#     return response
+#
+
+# def add_sns_notification_for_lambda(conf: Dict, sns_name: str, lambda_name: str, qualifier: str, region_name: str):
+#     sns_client = client(conf, 'sns')
+#     account_id = get_account_id(conf)
+#
+#     lambda_add_sns_permission(conf, account_id, lambda_name, sns_name, qualifier, region_name)
+#
+#     response = sns_client.subscribe(
+#         TopicArn=sns_arn(region_name, account_id, sns_name),
+#         Protocol='lambda',
+#         Endpoint=function_arn(region_name, account_id, lambda_name, qualifier)
+#     )
+#
+#     from pprint import pprint
+#     pprint('SNS Subscriber Response')
+#     pprint(response)
+#     return response
+
+def add_sns_notification_for_lambda(conf: Dict, sns_name: str, lambda_name: str, qualifier: str, region_name: str):
+    sns_client = client(conf, 'sns')
+    account_id = get_account_id(conf)
+
+    lambda_add_sns_permission(conf, account_id, lambda_name, sns_name, qualifier, region_name)
+
+    response = sns_client.subscribe(
+        TopicArn=sns_arn(region_name, account_id, sns_name),
+        Protocol='lambda',
+        Endpoint=function_arn(region_name, account_id, lambda_name, qualifier)
+    )
+
+    from pprint import pprint
+    pprint('SNS Subscriber Response')
+    pprint(response)
+    return response
+
+
+def add_cloudwatch_event_notification_for_lambda(conf: Dict, event_name: str, lambda_name: str, qualifier: str,
+                                                 region_name: str):
+    event_client = client(conf, 'events')
+    account_id = get_account_id(conf)
+
+    lambda_add_cloudwatch_event_permission(conf, account_id, lambda_name, event_name, qualifier, region_name)
+
+    # response = sns_client.subscribe(
+    #     TopicArn=sns_arn(region_name, account_id, sns_name),
+    #     Protocol='lambda',
+    #     Endpoint=function_arn(region_name, account_id, lambda_name, qualifier)
+    # )
+    #
+    # from pprint import pprint
+    # pprint('SNS Subscriber Response')
+    # pprint(response)
+    # return response
+
+
 def s3_add_lambda_notification(conf,
                                bucket_name,
                                qualifier,
@@ -339,7 +504,8 @@ def s3_add_lambda_notification(conf,
                                ):
     notification_response = None
     add = util.merge_dicts
-    s3 = resource(conf, 's3', region_name=region_name)
+    # s3 = resource(conf, 's3', region_name=region_name)
+    s3 = resource(conf, 's3')
     bucket_notification = s3.BucketNotification(bucket_name)
     lambda_arn = get_lambda_info(conf, lambda_name, qualifier, region_name)[FUNCTION_ARN]
 
@@ -382,7 +548,8 @@ def get_lambda_notifications(bucket_notification_client):
 def lambda_add_s3_permission(conf, lambda_name, bucket_name, prefix, qualifier, region_name):
     add = util.merge_dicts
     responses = []
-    lambda_client = client(conf, 'lambda', region_name=region_name)
+    conf['region_name'] = region_name
+    lambda_client = client(conf, 'lambda')
     # Giving S3 permission to invoke the lambda
     action_name = 'InvokeFunction'
     action = 'lambda:' + action_name
@@ -414,7 +581,7 @@ def lambda_add_s3_permission(conf, lambda_name, bucket_name, prefix, qualifier, 
 
 def get_lambda_info(conf, function_name, qualifier=None, region_name=None, lambda_client=None):
     if not lambda_client:
-        lambda_client = client(conf, 'lambda', region_name=region_name)
+        lambda_client = client(conf, 'lambda')
 
     kw = lambda_parameters(function_name, qualifier)
     try:
@@ -444,3 +611,94 @@ def copy_from_s3_to_s3(conf, source_bucket, source_key, destination_bucket, dest
     s3 = resource(conf, 's3')
     o = s3.Object(destination_bucket, destination_key)
     o.copy_from(CopySource=source_bucket + '/' + source_key)
+
+
+def get_sns_topic(conf, name: str, region_name: str):
+    try:
+        sns_client = client(conf, 'sns')
+        response = sns_client.get_topic_attributes(
+            TopicArn=sns_arn(region_name, get_account_id(conf), name)
+        )
+    except sns_client.exceptions.NotFoundException:
+        response = None
+
+    return response
+
+
+def create_cloudwatch_target(rule_name, target):
+    pass
+
+
+def create_cloudwatch_rule(conf: Dict[str, str],
+                           role: str,
+                           cloudwatch_event_name: str,
+                           schedule_expression: str,
+                           description: str = None):
+    arn = role_arn(get_account_id(conf), role)
+    event_client = client(conf, 'events')
+    response = event_client.put_rule(
+        Name=cloudwatch_event_name,
+        ScheduleExpression=schedule_expression,
+        # EventPattern='string',
+        State='ENABLED',
+        Description=description,
+        RoleArn=arn
+    )
+    return response
+
+
+def create_sns_topic(conf, name: str, region_name):
+    sns_client = client(conf, 'sns')
+    response1 = sns_client.create_topic(
+        Name=name
+    )
+    # account_id = get_account_id(conf)
+    # TODO: get_account_id is called all over the place. Can we call it once and then pass it along?
+    # response2 = sns_client.add_permission(
+    #     TopicArn=sns_arn(region_name, account_id, name),
+    #     Label='_'.join([RECEIVE, SUBSCRIBE]),
+    #     AWSAccountId=[
+    #         account_id
+    #     ],
+    #     ActionName=[
+    #         RECEIVE,
+    #         SUBSCRIBE
+    #     ]
+    # )
+    # return [response1, response2]
+
+    return [response1]
+
+
+def sns_arn(region_name, account_id, sns_name):
+    return "arn:aws:sns:{}:{}:{}".format(region_name, account_id, sns_name)
+
+
+def event_arn(region_name, account_id, event_name):
+    rule = f"rule/{event_name}"
+    return "arn:aws:events:{}:{}:{}".format(region_name, account_id, rule)
+
+
+def function_arn(region_name, account_id, qualified_lambda_name, alias=None):
+    main_arn = 'arn:aws:lambda:{region_name}:{account_id}:function:{qualified_lambda_name}'.format(
+        region_name=region_name,
+        account_id=account_id,
+        qualified_lambda_name=qualified_lambda_name)
+    if alias:
+        return main_arn + ":" + alias
+    else:
+        return main_arn
+
+
+def role_arn(account_id, role_name):
+    return 'arn:aws:iam::{account_id}:role/{role_name}'.format(account_id=account_id, role_name=role_name)
+
+
+if __name__ == '__main__':
+    from pprint import pprint
+
+    lambda_client = client({}, 'lambda')
+    policy = lambda_client.get_policy(
+        FunctionName='jaya-sns-pp_EchoSNS')
+
+    pprint(policy)

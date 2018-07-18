@@ -3,25 +3,18 @@ import sys
 from jaya.deployment.jaya_deploy import deploy_file
 
 
-# @click.command()
-# def deploy():
-#     """Display the current version."""
-#     click.echo("In Deploy")
-
-
 @click.command()
-@click.option('--config_file', required=False, help='Path to .conf file with AWS credentials etc.')
 @click.option('--file', required=True, help='Path to file which contains the pipeline')
 @click.option('--pipeline', required=True, help='Name of the pipeline')
-@click.option('--function', required=False, help='Path to file which contains the pipeline')
 @click.option('--qualify_lambda_name/--do_not_qualify_lambda_name', default=True)
-def deploy(config_file, file, pipeline, qualify_lambda_name, function):  # pragma: no cover
+@click.option('--function', required=False, help='Path to file which contains the pipeline')
+def deploy(file, pipeline, qualify_lambda_name, function):  # pragma: no cover
     """
     Main program execution handler.
     """
     try:
 
-        deploy_file(config_file, file, pipeline, qualify_lambda_name, function)
+        deploy_file(file, pipeline, qualify_lambda_name, function)
     except SystemExit as e:  # pragma: no cover
         sys.exit(e.code)
     except KeyboardInterrupt:  # pragma: no cover

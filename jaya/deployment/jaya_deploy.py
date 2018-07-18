@@ -28,25 +28,11 @@ def get_pipelines(module):
     return pipelines
 
 
-def _get_aws_conf(config_file: str) -> Dict[str, str]:
-    if config_file:
-        credentials = config.get(config_file)
-    else:
-        # Boto3 will figure it out.
-        credentials = dict(aws_access_key_id=None,
-                           aws_secret_access_key=None)
-
-    return credentials
-
-
-def deploy_file(config_file: str,
-                file_path: str,
+def deploy_file(file_path: str,
                 pipeline_name: str,
                 qualify_lambda_name: bool,
                 lambda_name: str = None):
-    aws_conf = _get_aws_conf(config_file)
-    aws_conf['aws_id'] = aws_conf['aws_access_key_id']
-    aws_conf['aws_key'] = aws_conf['aws_secret_access_key']
+    aws_conf = dict(aws_id=None, aws_key=None)
     pipelines = []
     module = load_module(file_path)
     pipelines.extend(get_pipelines(module))
@@ -55,7 +41,6 @@ def deploy_file(config_file: str,
     assert len(the_pipelines) <= 1, "There can only be one pipeline with the name in the search space:" + pipeline_name
     if the_pipelines:
         the_pipeline = the_pipelines[0]
-        # print('Fake Deploying:' + the_pipeline.name)
         if lambda_name:
             print('Deploying Pipeline:' + the_pipeline.name + ',function:' + lambda_name)
             deploy_node(aws_conf, the_pipeline, lambda_name, qualify_lambda_name=qualify_lambda_name)

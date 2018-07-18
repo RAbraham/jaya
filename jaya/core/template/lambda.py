@@ -8,4 +8,4 @@ with open(handler_path, "rb") as f:
 
 
 def handler(event, context):
-    h(event, context)
+    h.handler(event, context)

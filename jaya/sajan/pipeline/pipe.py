@@ -73,6 +73,8 @@ class Leaf(Tree):
         return hash(frozenset(self.__dict__))
 
     def __eq__(self, other):
+        print('In Leaf')
+        print(self.__dict__ == other.__dict__)
         return self.__dict__ == other.__dict__
 
     pass

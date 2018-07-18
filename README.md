@@ -1,31 +1,7 @@
 # jaya
-[Experimental][Seeking Feedback] Create Data Pipelines using AWS Services in Python 
+[Experimental][Seeking Feedback] Create data pipelines of AWS Services in Python.
 
-Express your data flow between services in Python. Pseudocode below. See the section `Example Code` for the full implementation.
 
-## Elevator Pitch(Pseudocode)
-```pythonstub
-from jaya import S3, AWSLambda
-import copy_helper
-from functools import partial
-conf = ...
-s1 = S3(bucket_name='tsa-tmp-bucket1',
-        region_name='us-east-1',
-        events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name='CopyLambda')])
-
-# copy_handler takes an additional config parameter which we can set right now before deployment
-handler = partial(copy_helper.copy_handler, conf)
-
-copy_lambda = AWSLambda('CopyLambda',
-                        handler,
-                        ...)
-
-s2 = S3(bucket_name='tsa-tmp-bucket2', region_name=region)
-
-p = s1 >> copy_lambda >> s2
-
-```
-Above, `p` indicates whenever a file is created in bucket `tsa-tmp-bucket1` , invoke the lambda named `CopyLambda` and copy the file to the bucket `tsa-tmp-bucket2`
 
 ## Installation
 Currently, I expect a lot of iterations and hence hesitate to publish a pip versioned library. However, if you wish to play with it, you can
@@ -46,78 +22,6 @@ virtualenv -p python3 venv3
 source venv3/bin/activate
 # Install Jaya(See section `Installation`)
 ```
-
-### Create a config file
-##### jayaclient/jayaclient/config/jaya.conf
-```bash
-[jaya]
-aws_access_key_id  = my_access_key_id
-aws_secret_access_key = my_secret
-```
-Fill `my_access_key_id` and `my_secret` with your own values
-
-## Example: Echo what file was created in a S3 bucket
-### Create a helper file. 
-##### jaya-client/jayaclient/pipelines/echo_helper.py
-```pythonstub
-def get_bucket_key_pairs_from_event(event):
-    return [(record['s3']['bucket']['name'],
-             record['s3']['object']['key'])
-            for record
-            in event['Records']]
-
-
-# Note that in the echo case, 'jaya_context' and 'context' are not used.
-def echo_handler(jaya_context, event, context):
-    bucket, key = get_bucket_key_pairs_from_event(event)[0]
-    print('Echo Helper:File created:' + bucket + '/' + key)
-
-
-```
-### Create the Pipeline file
-##### jaya-client/jayaclient/pipelines/echo_pipeline.py
-```pythonstub
-from jaya import S3, Pipeline, AWSLambda
-# Note this import is for adding the AWSLambda dependencies
-import jayaclient
-from jayaclient.pipelines import echo_helper
-
-region = 'us-east-1'
-echo_lambda_name = 'EchoLambda'
-s1 = S3(bucket_name='tsa-my-source-bucket',
-        region_name=region,
-        events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name=echo_lambda_name)])
-
-lambda_config = dict(name=echo_lambda_name,
-                     handler=echo_helper.echo_handler,
-                     region_name=region,
-                     alias='development',
-                     virtual_environment_path='/Users/rabraham/Documents/dev/thescore/analytics/jaya-client/venv3/',
-                     role_name='lambda_s3_exec_role',  # Existing role which has to be created manually
-                     description="Echo Created File Name",
-                     dependencies=[jayaclient, echo_helper])
-
-echo_lambda = AWSLambda(**lambda_config)
-p = s1 >> echo_lambda
-piper = Pipeline('my-echo-pipeline', [p])
-
-
-```
-The code piece `p = s1 >> echo_lambda` says 
-
-* create `s1` if it does not exist, create or update `echo_lambda`
-* create an event notification such that if a file is created in `tsa-my-source-bucket`, it will invoke `EchoLambda`.   
-
-### Deploy the pipeline
-```bash
-
-jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.conf --file=./jayaclient/pipelines/echo_pipeline.py --pipeline=my-echo-pipeline
-```
-The above code will create the S3 buckets if they don't exist.
-If you go to your AWS Lambda Console, you'll see an entry titled `my-echo-pipeline_EchoLambda`. Check the alias `development` and you'll see the trigger for the S3 bucket. Likewise, if you go to the S3 Console for the bucket `tsa-my-source-bucket`, you'll see the event notification added for the lambda function and alias. 
-
-## Example: Copy Files from one S3 bucket to another
-Let's create another example, where, when a file is created in one bucket, it gets copied to another bucket.
 
 ### Create the helper file
 ##### jaya-client/jayaclient/pipelines/copy_helper.py
@@ -146,7 +50,7 @@ def get_bucket_key_pairs_from_event(event):
 
 
 def copy_handler(aws_config, jaya_context, event, context):
-    # You can access values set during deployment e.g. aws_config
+    config
     print('Configuration Size:')
     print(len(aws_config))  # or print any value
 
@@ -205,10 +109,19 @@ piper = Pipeline(pipeline_name, [p])
 
 ```
 
+The code piece `p = s1 >> copy_lambda >> s2` says 
+
+* create `s1` and `s2` if it does not exist, create or update `copy_lambda`
+* create an event notification such that if a file is created in `s1`, it will invoke `CopyLambda` and copy the file to `s2`.   
+
 ### Deploy the pipeline
 ```bash
 jaya-client> PYTHONPATH=. jaya deploy --config_file=./jayaclient/config/jaya.conf --file=./jayaclient/pipelines/copy_pipeline.py --pipeline=my-copy-pipeline
 ```
+
+The above code will create the S3 buckets if they don't exist.
+If you go to your AWS Lambda Console, you'll see the deployed lambda. Check the alias `development` and you'll see the trigger for the S3 bucket. Likewise, if you go to the S3 Console for the bucket in `s1`, you'll see the event notification added for the lambda function and alias. 
+
 
 ### Redeploy a specific lambda function(e.g after making changes)
 ```bash
@@ -297,6 +210,13 @@ p = n1 >> n2 >> [n3 >> n4 >> [n7,
 
     - We can share AWSLambda in libraries. We could create a `S3ToFirehoseLambda` and share it!
 
+
+## Supported Services
+
+| From/To  | S3 | Lambda |
+| ---- | ------------- |------|
+| S3  | N/A  |Yes|
+| Lambda  | Yes  |No|
 
 ## TODO
 - Add Dead Letter Queue Support to `AWSLambda`

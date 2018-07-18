@@ -23,14 +23,18 @@ LAMBDA = 'lambda'
 S3_SOURCE_BUCKET_NAME = 's3_source_bucket'
 S3 = 's3'
 S3_NOTIFICATION = 's3_notification'
+SNS_NOTIFICATION = 'sns_notification'
 EVENT_TRIGGERS = 'event_triggers'
 LAMBDA_NAMES = 'lambda_names'
 LAMBDA_NAME = "lambda_name"
 LAMBDA_INSTANCE = 'lambda_instance'
+CLOUDWATCH_EVENT_INSTANCE = 'cloudwatch_event_instance'
 REGION_NAME = 'region_name'
 TABLE = 'table'
 TRIGGERS = 'triggers'
 FIREHOSE = 'firehose'
+SNS = 'sns'
+CLOUDWATCH_EVENT = 'cloudwatch_event'
 
 
 def deploy_info(a_pipeline: Pipeline, test_mode: bool = False, qualify_lambda_name: bool = True):
@@ -51,10 +55,12 @@ def deploy_info(a_pipeline: Pipeline, test_mode: bool = False, qualify_lambda_na
 def init_aggregator():
     aggregator = defaultdict(dict)
     aggregator[LAMBDA] = defaultdict(dict)
-    # aggregator[S3_NOTIFICATION] = defaultdict(dict)
+    aggregator[S3_NOTIFICATION] = defaultdict(dict)
     aggregator[S3] = defaultdict(dict)
     aggregator[TABLE] = defaultdict(dict)
     aggregator[FIREHOSE] = defaultdict(dict)
+    aggregator[SNS] = defaultdict(dict)
+    aggregator[CLOUDWATCH_EVENT] = defaultdict(dict)
     return aggregator
 
 
@@ -79,6 +85,10 @@ def process_leaf(aggregator, a_pipeline, visited_node, copy_func, lambda_name_fu
         aggregator[TABLE][visited_node.table_name] = visited_node
     elif visited_node.service_name == aws.FIREHOSE:
         aggregator[FIREHOSE][visited_node.firehose_name] = visited_node
+    # elif visited_node.service_name == aws.SNS:
+    #     aggregator[SNS][visited_node.name] = dict(name=visited_node.name, region_name=visited_node.region_name)
+    # elif visited_node.service_name == aws.CLOUDWATCH_EVENT:
+    #     aggregator[CLOUDWATCH_EVENT][visited_node.name] = visited_node
 
 
 def add_lambda(a_pipeline, aggregator, visited_node, copy_func, lambda_name_func):
@@ -113,39 +123,66 @@ def lambda_name(pipeline_name: str, lambda_name: str, qualify_lambda_name: bool)
 def process_composite_node(aggregator, a_pipeline, visited_node, copy_func, lambda_name_func):
     node_value = visited_node.value()
     if node_value.service_name == aws.S3:
-        bucket_name = node_value.bucket_name
+        node_name = node_value.bucket_name
+        composite_service = S3_NOTIFICATION
         # TODO: What happens if there is a cycle in the graph, then the following initialization will reset the earlier configs for the same s3 bucket
         children = visited_node.children()
         if len(children) == 1:
             single_child_value = get_child_value(children[0])
             if single_child_value.service_name == aws.LAMBDA:
                 name = lambda_name_func(a_pipeline.name, single_child_value.name)
-                if S3_NOTIFICATION not in aggregator[LAMBDA][name]:
-                    aggregator[LAMBDA][name][S3_NOTIFICATION] = {}
-                lambda_notif_info = aggregator[LAMBDA][name][S3_NOTIFICATION]
-                add_to_single_lambda_notif_info(lambda_notif_info, bucket_name, node_value.events,
-                                                single_child_value.name)
+                if composite_service not in aggregator[LAMBDA][name]:
+                    aggregator[LAMBDA][name][composite_service] = {}
+                lambda_notif_info = aggregator[LAMBDA][name][composite_service]
+                add_to_single_lambda_notif_info_s3(lambda_notif_info, node_name, node_value.events,
+                                                   single_child_value.name)
         else:
-
-            services = [get_child_value(c) for c in children]
-            check_valid_mappings(node_value.events, services)
-
+            validate_mappings(children, node_value)
             for child in children:
                 child_value = get_child_value(child)
                 if child_value.service_name == aws.LAMBDA:
                     name = lambda_name_func(a_pipeline.name, child_value.name)
-                    if S3_NOTIFICATION not in aggregator[LAMBDA][name]:
-                        aggregator[LAMBDA][name][S3_NOTIFICATION] = {}
-                    lambda_notif_info = aggregator[LAMBDA][name][S3_NOTIFICATION]
-                    add_to_lambda_notif_info(lambda_notif_info, bucket_name, node_value.events, child_value.name)
+                    if composite_service not in aggregator[LAMBDA][name]:
+                        aggregator[LAMBDA][name][composite_service] = {}
+                    lambda_notif_info = aggregator[LAMBDA][name][composite_service]
+                    add_to_lambda_notif_info_s3(lambda_notif_info, node_name, node_value.events, child_value.name)
 
-        aggregator[S3][bucket_name] = {REGION_NAME: node_value.region_name}
+        aggregator[S3][node_name] = {REGION_NAME: node_value.region_name}
+    # elif node_value.service_name == aws.SNS:
+    #     # sns_name = node_value.name
+    #     node_name = node_value.name
+    #     composite_service = SNS_NOTIFICATION
+    #     # TODO: What happens if there is a cycle in the graph, then the following initialization will reset the earlier configs for the same s3 bucket
+    #     children = visited_node.children()
+    #     if len(children) == 1:
+    #         single_child_value = get_child_value(children[0])
+    #         if single_child_value.service_name == aws.LAMBDA:
+    #             name = lambda_name_func(a_pipeline.name, single_child_value.name)
+    #             if composite_service not in aggregator[LAMBDA][name]:
+    #                 aggregator[LAMBDA][name][composite_service] = []
+    #             aggregator[LAMBDA][name][composite_service] = [node_name]
+    #
+    #     else:
+    #         for child in children:
+    #             child_value = get_child_value(child)
+    #             if child_value.service_name == aws.LAMBDA:
+    #                 name = lambda_name_func(a_pipeline.name, child_value.name)
+    #                 if composite_service not in aggregator[LAMBDA][name]:
+    #                     aggregator[LAMBDA][name][composite_service] = []
+    #                 lambda_notif_info = aggregator[LAMBDA][name][composite_service]
+    #                 lambda_notif_info.append(node_name)
+    #     aggregator[SNS][node_name] = {REGION_NAME: node_value.region_name}
     elif node_value.service_name == aws.LAMBDA:
         add_lambda(a_pipeline, aggregator, node_value, copy_func, lambda_name_func)
     elif node_value.service_name == aws.TABLE:
         aggregator[TABLE][node_value.table_name] = node_value
     elif node_value.service_name == aws.FIREHOSE:
         aggregator[FIREHOSE][node_value.firehose_name] = node_value
+
+
+def validate_mappings(children, node_value):
+    services = [get_child_value(c) for c in children]
+    check_valid_mappings(node_value.events, services)
 
 
 def get_child_value(single_child):
@@ -167,7 +204,7 @@ def check_valid_mappings(events, services):
                                                                                                      service_names))
 
 
-def add_to_single_lambda_notif_info(lambda_notif_info, bucket_name, notifications, original_lambda_name):
+def add_to_single_lambda_notif_info_s3(lambda_notif_info, bucket_name, notifications, original_lambda_name):
     # TODO: Ensure that new_info is unique set as it is possible to put multiple notifications of the same values
     old_info = lambda_notif_info.get(bucket_name, [])
     new_info = old_info + single_lambda_notifications(notifications, original_lambda_name, bucket_name)
@@ -175,12 +212,37 @@ def add_to_single_lambda_notif_info(lambda_notif_info, bucket_name, notification
     lambda_notif_info[bucket_name] = new_info
 
 
-def add_to_lambda_notif_info(lambda_notif_info, bucket_name, notifications, original_lambda_name):
+def add_to_lambda_notif_info_s3(lambda_notif_info, bucket_name, notifications, original_lambda_name):
     # TODO: Ensure that new_info is unique set as it is possible to put multiple notifications of the same values
     old_info = lambda_notif_info.get(bucket_name, [])
-    new_info = old_info + lambda_notifications(notifications, original_lambda_name)
+    new_info = old_info + multiple_lambda_notifications(notifications, original_lambda_name)
 
     lambda_notif_info[bucket_name] = new_info
+
+
+def add_to_single_lambda_notif_info_sns(lambda_notif_info, sns_name: str, notifications, original_lambda_name: str):
+    # TODO: Ensure that new_info is unique set as it is possible to put multiple notifications of the same values
+    old_info = lambda_notif_info.get(sns_name, [])
+    new_info = old_info + single_lambda_notifications_sns(notifications, original_lambda_name, sns_name)
+
+    lambda_notif_info[sns_name] = new_info
+
+
+def single_lambda_notifications_sns(notifications, original_lambda_name, bucket_name):
+    results = []
+    for a_notification in notifications:
+        p_notification = pmap(a_notification)
+        service_name = p_notification.get(SERVICE_NAME_KEY)
+        if service_name and service_name != original_lambda_name:
+            raise ValueError(
+                'SNS Notification:{} for bucket: {} incorrectly '
+                'has service_name={} instead of {}'.format(p_notification,
+                                                           bucket_name,
+                                                           p_notification[SERVICE_NAME_KEY],
+                                                           original_lambda_name))
+        mod_n = p_notification.set(SERVICE_NAME_KEY, original_lambda_name)
+        results.append(mod_n)
+    return results
 
 
 def single_lambda_notifications(notifications, original_lambda_name, bucket_name):
@@ -196,11 +258,12 @@ def single_lambda_notifications(notifications, original_lambda_name, bucket_name
                                                            p_notification[SERVICE_NAME_KEY],
                                                            original_lambda_name))
         mod_n = p_notification.set(SERVICE_NAME_KEY, original_lambda_name)
+        # mod_n = p_notification
         results.append(mod_n)
     return results
 
 
-def lambda_notifications(notifications, original_lambda_name):
+def multiple_lambda_notifications(notifications, original_lambda_name):
     return [n for n in notifications if n['service_name'] == original_lambda_name]
 
 
@@ -270,11 +333,27 @@ def deploy_stack(conf, info):
     for bucket, bucket_info in s3_buckets.items():
         aws_lib.create_s3_bucket(conf, bucket, bucket_info[REGION_NAME])
 
+    for sns_name, sns_info in info[SNS].items():
+        aws_lib.create_sns_topic(conf, sns_name, sns_info['region_name'])
+
+    # for cloudwatch_event_name, cloudwatch_info in info[CLOUDWATCH_EVENT].items():
+    #     # def create_cloudwatch_event(conf, arn, cloudwatch_event_name, schedule_expression,
+    #     #                             description: str = None)
+    #     cloudwatch_node = cloudwatch_info[CLOUDWATCH_EVENT_INSTANCE]
+    #     aws_lib.create_cloudwatch_rule(conf,
+    #                                    cloudwatch_node.role,
+    #                                    cloudwatch_event_name,
+    #                                    cloudwatch_node.schedule_expression,
+    #                                    cloudwatch_node.description)
+    #
+    #
+    #     aws_lib.create_cloudwatch_target(cloudwatch_event_name, target)
+
     lambdas = info[LAMBDA]
     for lambda_name, lambda_info in lambdas.items():
         lambda_instance = lambda_info[LAMBDA_INSTANCE]
         deploy_lambda.deploy_lambda_package(conf, lambda_instance)
-        for bucket_name, notification_infos in lambda_info[S3_NOTIFICATION].items():
+        for bucket_name, notification_infos in lambda_info.get(S3_NOTIFICATION, {}).items():
             for notification_info in notification_infos:
                 aws_lib.add_s3_notification_for_lambda(conf,
                                                        bucket_name,
@@ -284,6 +363,13 @@ def deploy_stack(conf, info):
                                                        prefix=notification_info.get('prefix', None),
                                                        suffix=notification_info.get('suffix', None),
                                                        region_name=lambda_instance.region_name)
+
+        # for sns_name in lambda_info[SNS_NOTIFICATION]:
+        #     aws_lib.add_sns_notification_for_lambda(conf,
+        #                                             sns_name,
+        #                                             lambda_name,
+        #                                             lambda_instance.alias,
+        #                                             lambda_instance.region_name)
 
     tables = info[TABLE]
     for table_name, table in tables.items():

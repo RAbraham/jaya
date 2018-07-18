@@ -1,12 +1,11 @@
 import unittest
-from .handlers import echo_handler, copy_handler
+from .handlers import echo_handler_lambda, CopyHandler
 from jaya import S3, AWSLambda, Pipeline
 from jaya.deployment import deploy
 import json
-# from localstack.mock import infra
+
 import copy
 import jaya
-from functools import partial
 
 FILE_CREATED_EVENT = S3.event(S3.ALL_CREATED_OBJECTS)
 
@@ -17,17 +16,24 @@ BUCKET3 = 'tsa-bucket3'
 ENVIRONMENT = 'development'
 
 
-# A_S3 = S3(BUCKET1, DEFAULT_REGION, on=[lambda_event(lambda_name)])
+def copy_lambda(lambda_name):
+    copy_handler = CopyHandler({})
+    l1 = AWSLambda(lambda_name,
+                   copy_handler,
+                   DEFAULT_REGION,
+                   alias=ENVIRONMENT,
+                   dependencies=[jaya])
+    return l1
 
 
-# def lambda_event(lambda_name):
-#     return S3.event(trigger=S3.ALL_CREATED_OBJECTS, service_name=lambda_name)
+def echo_lambda(lambda_name):
+    return echo_handler_lambda(lambda_name, 'development', 'Unit Test Echo')
 
 
 class DeployTestCase(unittest.TestCase):
     def setUp(self):
         # infra.start_infra(async=True, apis=['s3'])
-
+        self.maxDiff = None
         pass
 
     def tearDown(self):
@@ -45,18 +51,73 @@ class DeployTestCase(unittest.TestCase):
 
         self.assertEqual(exp_agg, info)
 
+    # def test_sns_leaf(self):
+    #     sns_name = 'jaya-sns'
+    #     p = SNS(topic=sns_name, region_name='us-east-1')
+    #     pp = Pipeline('jaya-sns-pp', [p])
+    #     exp = deploy.init_aggregator()
+    #     exp[deploy.SNS][sns_name] = dict(name=sns_name, region_name='us-east-1')
+    #     act = deploy.deploy_info(pp, test_mode=True)
+    #
+    #     self.assertDictEqual(exp, act)
+
+    # def test_sns_lambda(self):
+    #     pipeline_name = 'sns-lambda-pipe'
+    #     lambda_name = 'Echo1'
+    #     qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
+    #     sns_name = 'sns-lambda'
+    #     sns1 = SNS(topic=sns_name, region_name='us-east-1')
+    #     l1 = echo_lambda(lambda_name)
+    #
+    #     p = sns1 >> l1
+    #     piper = Pipeline(pipeline_name, [p])
+    #
+    #     lambda_with_modified_name = deploy.copy_lambda(qualified_lambda_name, p.children()[0], copy.copy)
+    #
+    #     info = deploy.deploy_info(piper, test_mode=True)
+    #
+    #     exp_agg = deploy.init_aggregator()
+    #     exp_agg[deploy.SNS] = {sns_name: {deploy.REGION_NAME: DEFAULT_REGION}}
+    #     exp_agg[deploy.LAMBDA] = {qualified_lambda_name: {deploy.LAMBDA_INSTANCE: lambda_with_modified_name,
+    #                                                       deploy.SNS_NOTIFICATION: [sns_name]}}
+    #
+    #     self.assertEqual(exp_agg, info)
+
+    # def test_sns_lambda_lambda(self):
+    #     pipeline_name = 'sns-lambda-pipe'
+    #     lambda_name1 = 'Echo1'
+    #     qualified_lambda_name1 = deploy.lambda_name(pipeline_name, lambda_name1, True)
+    #     l1 = echo_lambda(lambda_name1)
+    #     lambda_name2 = 'Echo2'
+    #     l2 = echo_lambda(lambda_name2)
+    #     qualified_lambda_name2 = deploy.lambda_name(pipeline_name, lambda_name2, True)
+    #
+    #     sns_name = 'sns-lambda'
+    #     sns1 = SNS(topic=sns_name, region_name='us-east-1')
+    #
+    #     p = sns1 >> [l1, l2]
+    #     piper = Pipeline(pipeline_name, [p])
+    #
+    #     lambda1_with_modified_name = deploy.copy_lambda(qualified_lambda_name1, p.children()[0], copy.copy)
+    #     lambda2_with_modified_name = deploy.copy_lambda(qualified_lambda_name2, p.children()[1], copy.copy)
+    #     info = deploy.deploy_info(piper, test_mode=True)
+    #
+    #     exp_agg = deploy.init_aggregator()
+    #     exp_agg[deploy.SNS] = {sns_name: {deploy.REGION_NAME: DEFAULT_REGION}}
+    #     exp_agg[deploy.LAMBDA] = {qualified_lambda_name1: {deploy.LAMBDA_INSTANCE: lambda1_with_modified_name,
+    #                                                        deploy.SNS_NOTIFICATION: [sns_name]},
+    #                               qualified_lambda_name2: {deploy.LAMBDA_INSTANCE: lambda2_with_modified_name,
+    #                                                        deploy.SNS_NOTIFICATION: [sns_name]}
+    #                               }
+    #
+    #     self.assertEqual(exp_agg, info)
+
     def test_s3_lambda(self):
         pipeline_name = 'two-node-pipe'
         lambda_name = 'Echo1'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[FILE_CREATED_EVENT])
-        l1 = AWSLambda(lambda_name,
-                       echo_handler,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       virtual_environment_path=None,
-                       role_name=None,
-                       dependencies=[jaya])
+        l1 = echo_lambda(lambda_name)
 
         p = s1 >> l1
         piper = Pipeline(pipeline_name, [p])
@@ -78,13 +139,7 @@ class DeployTestCase(unittest.TestCase):
         pipeline_name = 'two-node-pipe'
         lambda_name = 'Echo1'
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS, service_name='WrongLambdaName')])
-        l1 = AWSLambda(lambda_name,
-                       echo_handler,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       virtual_environment_path=None,
-                       role_name=None,
-                       dependencies=[jaya])
+        l1 = echo_lambda(lambda_name)
 
         p = s1 >> l1
         piper = Pipeline(pipeline_name, [p])
@@ -98,13 +153,7 @@ class DeployTestCase(unittest.TestCase):
         lambda_name2 = 'Echo2'
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS),
                                                  S3.event(S3.ALL_REMOVED_OBJECTS)])
-        l1 = AWSLambda(lambda_name1,
-                       echo_handler,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       virtual_environment_path=None,
-                       role_name=None,
-                       dependencies=[jaya])
+        l1 = echo_lambda(lambda_name1)
 
         l2 = copy.deepcopy(l1)
         l2.name = lambda_name2
@@ -116,18 +165,14 @@ class DeployTestCase(unittest.TestCase):
             deploy.deploy_info(piper, test_mode=True)
 
     def test_s3_lambda_s3(self):
-        copy_handler_partial = partial(copy_handler, {})
-
+        # copy_handler_partial = partial(copy_handler, {})
         lambda_name = 'CopyS3Lambda1'
         pipeline_name = 'three-node-pipe'
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, True)
 
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS)])
-        l1 = AWSLambda(lambda_name,
-                       copy_handler_partial,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       dependencies=[jaya])
+
+        l1 = copy_lambda(lambda_name)
         s2 = S3(BUCKET2, DEFAULT_REGION)
 
         p = s1 >> l1 >> s2
@@ -148,20 +193,14 @@ class DeployTestCase(unittest.TestCase):
         self.assertEqual(info, exp_agg)
 
     def test_non_qualified_names(self):
-        copy_handler_partial = partial(copy_handler, {})
-
         lambda_name = 'CopyS3Lambda1'
         pipeline_name = 'three-node-pipe'
         dont_qualify_lambda_name = False
         qualified_lambda_name = deploy.lambda_name(pipeline_name, lambda_name, dont_qualify_lambda_name)
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
-        l1 = AWSLambda(lambda_name,
-                       copy_handler_partial,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       dependencies=[jaya])
 
+        l1 = copy_lambda(lambda_name)
         p = s1 >> l1 >> s2
         piper = Pipeline(pipeline_name, [p])
 
@@ -180,45 +219,28 @@ class DeployTestCase(unittest.TestCase):
         pass
 
     def test_unique_lambda_names(self):
-        copy_handler_partial = partial(copy_handler, {})
-
         lambda_name = 'CopyS3Lambda1'
         pipeline_name = 'incorrect-pipe-with-multiple-lambdas-with-same-name'
 
         s1 = S3(BUCKET1, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS)])
         s2 = S3(BUCKET2, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS)])
-        l1 = AWSLambda(lambda_name,
-                       copy_handler_partial,
-                       DEFAULT_REGION,
-                       alias=ENVIRONMENT,
-                       dependencies=[jaya])
 
+        l1 = copy_lambda(lambda_name)
         s3 = S3(BUCKET3, DEFAULT_REGION)
 
-        same_named_lambda = AWSLambda(lambda_name,
-                                      copy_handler_partial,
-                                      DEFAULT_REGION,
-                                      alias=ENVIRONMENT,
-                                      dependencies=[jaya])
+        same_named_lambda = copy_lambda(lambda_name)
         p = s1 >> l1 >> s2 >> same_named_lambda >> s3
         piper = Pipeline(pipeline_name, [p])
-        # ValueError: There are multiple lambdas in the pipeline named CopyS3Lambda1. Please change the names to be unique
         with self.assertRaises(ValueError) as cx:
             deploy.deploy_info(piper, test_mode=True)
 
     def test_subset_tree(self):
-        echo_lambda = partial(AWSLambda,
-                              handler=echo_handler,
-                              region_name=DEFAULT_REGION,
-                              alias=ENVIRONMENT,
-                              dependencies=[jaya])
-
         lambda_name = 'Echo1'
         s1 = S3(BUCKET2, DEFAULT_REGION, events=[S3.event(S3.ALL_CREATED_OBJECTS)])
         s2 = S3(BUCKET2, DEFAULT_REGION)
 
-        l1 = echo_lambda(name=lambda_name)
-        l2 = echo_lambda(name='OtherEcho')
+        l1 = echo_lambda(lambda_name)
+        l2 = echo_lambda('OtherEcho')
 
         inp_exp = [
             (s1, None),

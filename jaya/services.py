@@ -1,20 +1,16 @@
 import jaya
 
-from jaya.sajan import Leaf, Composite, Tree, Service, SajanContext
+from jaya.sajan import Composite, Service, SajanContext
 from jaya.sajan import util as sajan_util
 from jaya.core import aws
 import sqlalchemy as sa
-from typing import Callable, List, Dict, TypeVar
-from functools import partial
+from typing import List, Dict, TypeVar
 
 DLQ_SERVICES = ['SQS', 'SNS']
 
 PYTHON36 = 'python3.6'
 DEFAULT_COPY_OPTIONS = "format as json 'auto' gzip timeformat 'auto' truncatecolumns"
 C = TypeVar('C')
-
-
-# HANDLER_SIGNATURE = Callable[[List[Leaf], Dict, C], None]
 
 
 def require(keyword_argument, name):
@@ -48,10 +44,22 @@ class S3(Service):
                 }
 
 
+class LambdaHandler(object):
+    def __init__(self):
+        self.jaya_context = SajanContext()
+        pass
+
+    def initialize(self):
+        pass
+
+    def handler(self, event, context):
+        pass
+
+
 class AWSLambda(Service):
     def __init__(self,
                  name: str,
-                 handler,
+                 handler: LambdaHandler,
                  region_name: str,
                  memory: int = 1536,
                  timeout: int = 300,
@@ -65,8 +73,8 @@ class AWSLambda(Service):
                  environment_variables=None,
                  dead_letter_queue: Dict[str, str] = None):
         self.name = name
-        self.handler_func = handler
-        self.handler = partial(self.handler_func, SajanContext())
+        self.handler_class = handler
+        self.handler = handler
         self.region_name = region_name
         self.memory = memory
         self.timeout = timeout
@@ -89,11 +97,10 @@ class AWSLambda(Service):
             service = self.dead_letter_queue['service']
             assert service in DLQ_SERVICES, "Invalid {} not in {}".format(service, DLQ_SERVICES)
 
-            # super(AWSLambda, self).__init__([self.name, self.handler_func, self.dependency_paths])
         # TODO: Pass all lambda values?
         super(AWSLambda, self).__init__(service_name=aws.LAMBDA,
                                         lambda_name=self.name,
-                                        handler_func=self.handler_func,
+                                        handler_class=self.handler_class,
                                         region_name=self.region_name,
                                         alias=self.alias,
                                         description=self.description,
@@ -106,7 +113,7 @@ class AWSLambda(Service):
 
     def __rshift__(self, node_or_nodes):
         children = sajan_util.listify(node_or_nodes)
-        self.handler = partial(self.handler_func, SajanContext(children=children))
+        self.handler.jaya_context = SajanContext(children=children)
 
         return Composite(self, children)
 
@@ -116,7 +123,6 @@ class Firehose(Service):
     def __init__(self, firehose_name, database_name, user_name, user_password, server_address, table_name,
                  holding_bucket, role_name, copy_options=DEFAULT_COPY_OPTIONS, prefix=None, buffering_size_mb=128,
                  buffering_interval_seconds=900, log_group=None, log_stream='RedshiftDelivery'):
-        # self.service = Service(aws.FIREHOSE)
         self.firehose_name = firehose_name
         self.database_name = database_name
         self.user_name = user_name
@@ -131,15 +137,46 @@ class Firehose(Service):
         self.buffering_interval_seconds = buffering_interval_seconds
         self.log_group = log_group
         self.log_stream = log_stream
-        # super(Firehose, self).__init__([self.firehose_name])
         super(Firehose, self).__init__(service_name=aws.FIREHOSE,
                                        firehose_name=firehose_name)
         pass
 
 
+# class SNS(Service):
+#     def __init__(self, topic=None, region_name=None):
+#         assert topic, 'topic is a required field'
+#         self.name = topic
+#         self.region_name = region_name
+#         super(SNS, self).__init__(service_name=aws.SNS,
+#                                   name=self.name,
+#                                   region_name=self.region_name)
+#
+#         pass
+
+
+# class CloudWatchEventRule(object):
+#     pass
+#
+#
+# class CloudWatchEvent(Service):
+#     def __init__(self, name: str, role: str, rule: str, description: str = None):
+#         self.name = name
+#         self.role = role
+#         self.rule = rule
+#         self.description = description
+#         super(CloudWatchEvent, self).__init__(service_name=aws.CLOUDWATCH_EVENT,
+#                                               role=self.role,
+#                                               name=self.name,
+#                                               rule=self.rule,
+#                                               description=self.description)
+#
+#     @staticmethod
+#     def rule(**kwargs):
+#         return kwargs
+
+
 class Table(Service):
     def __init__(self, database_config, table_name, *columns, **keys):
-        # self.service = Service(aws.TABLE)
         self.database_config = database_config
         self.table_name = table_name
 
@@ -149,7 +186,6 @@ class Table(Service):
                               self.metadata,
                               *columns,
                               **keys)
-        # super(Table, self).__init__([database_config, table_name, columns, keys])
         super(Table, self).__init__(service_name=aws.TABLE,
                                     table_name=table_name,
                                     columns=columns,

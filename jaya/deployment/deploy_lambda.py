@@ -1,4 +1,6 @@
 import zipfile
+from typing import Dict
+
 from jaya.lib import aws, util
 import os
 from jaya.config import config
@@ -58,9 +60,9 @@ def tmp_path():
     return '/tmp'
 
 
-def deploy_lambda_package(conf,
+def deploy_lambda_package(conf: Dict,
                           aws_lambda_function,
-                          working_directory=tmp_path()
+                          working_directory: str = tmp_path()
                           ):
     package_path = make_lambda_zip_package(aws_lambda_function, working_directory)
     deploy_lambda(conf, aws_lambda_function, package_path)
@@ -134,16 +136,16 @@ def make_lambda_conf_from_lambda(conf, a_lambda, zip_package_path):
     # TODO: We should not use role parameter eventually
     sha256 = util.sha256_of_zipfile(zip_package_path)
     account_id = aws.get_account_id(conf)
-    role_arn = make_role_arn(account_id, a_lambda.role_name)
+    role_arn = aws.role_arn(account_id, a_lambda.role_name)
     handler_name = QUALIFIED_HANDLER_NAME
     return make_lambda_conf(base64.b64encode(sha256).decode(),
                             os.path.getsize(zip_package_path),
                             a_lambda.description,
-                            function_arn(a_lambda.region_name,
-                                         account_id,
-                                         a_lambda.name,
-                                         a_lambda.alias
-                                         ),
+                            aws.function_arn(a_lambda.region_name,
+                                             account_id,
+                                             a_lambda.name,
+                                             a_lambda.alias
+                                             ),
                             a_lambda.name,
                             handler_name,
                             a_lambda.memory,
@@ -153,27 +155,9 @@ def make_lambda_conf_from_lambda(conf, a_lambda, zip_package_path):
                             a_lambda.tracing_config)
 
 
-def make_role_arn(account_id, role_name):
-    return 'arn:aws:iam::{account_id}:role/{role_name}'.format(account_id=account_id, role_name=role_name)
-
-
-def function_arn(region_name, account_id, qualified_lambda_name, alias=None):
-    main_arn = 'arn:aws:lambda:{region_name}:{account_id}:function:{qualified_lambda_name}'.format(
-        region_name=region_name,
-        account_id=account_id,
-        qualified_lambda_name=qualified_lambda_name)
-    if alias:
-        return main_arn + ":" + alias
-    else:
-        return main_arn
-
-
-def sns_arn(region_name, account_id, sns_name):
-    return "arn:aws:sns:{}:{}:{}".format(region_name, account_id, sns_name)
-
-
 def deploy_lambda(conf, a_lambda, zip_package_path):
-    lambda_client = aws.client(conf, 'lambda', region_name=a_lambda.region_name)
+    conf['region_name'] = a_lambda.region_name
+    lambda_client = aws.client(conf, 'lambda')
     iam = aws.client(conf, 'iam')
     role = iam.get_role(RoleName=a_lambda.role_name)['Role']
     dlq_arn = None
@@ -182,7 +166,7 @@ def deploy_lambda(conf, a_lambda, zip_package_path):
         if service == 'SNS':
             account_id = aws.get_account_id(conf)
             sns_name = a_lambda.dead_letter_queue['name']
-            dlq_arn = sns_arn(a_lambda.region_name, account_id, sns_name)
+            dlq_arn = aws.sns_arn(a_lambda.region_name, account_id, sns_name)
         elif service == 'SQS':
             raise ValueError('SQS as Dead Letter Queue not supported yet')
 
@@ -233,7 +217,6 @@ def serialized_file(a_lambda, working_directory, serialized_file_name='handler.d
         os.remove(serialized_file_path)
     util.pickle_and_save_dill(a_lambda.handler, serialized_file_path)
     return serialized_file_path
-    pass
 
 
 # def deploy_lambda_package_local(aws_lambda_function,

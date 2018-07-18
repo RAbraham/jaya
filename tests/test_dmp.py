@@ -23,7 +23,7 @@ class DmpTestCase(unittest.TestCase):
     # Test for duplicates in pipeline
 
     def setUp(self):
-        self.conf = config.get_aws_config('development')
+        # self.conf = config.get_aws_config('development')
 
     def test_dmp_simple(self):
         name = 'dmp-mapper'
